@@ -1,0 +1,73 @@
+{
+  "name": "llm-cost-guard",
+  "version": "0.1.0",
+  "description": "Open-source TypeScript SDK for LLM cost estimation, budget enforcement, usage attribution, and cost spike analysis.",
+  "keywords": [
+    "ai",
+    "llm",
+    "openai",
+    "anthropic",
+    "tokens",
+    "cost",
+    "budget",
+    "rate-limit",
+    "observability",
+    "typescript",
+    "sdk"
+  ],
+  "license": "MIT",
+  "author": "Aleksei Sukhanov",
+  "homepage": "https://github.com/sukhanovaleksei/llm-cost-guard#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sukhanovaleksei/llm-cost-guard.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sukhanovaleksei/llm-cost-guard/issues"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "clean": "rimraf dist tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "lint:ci": "eslint . --max-warnings 0",
+    "prepublishOnly": "npm run build && npm run test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.4.0",
+    "eslint": "^10.0.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-simple-import-sort": "^12.1.1"
+  }
+}
