@@ -4,6 +4,12 @@ export interface RunContext {
   model: string;
 }
 
+export interface ResolvedRunContext {
+  projectId: string;
+  providerId: string;
+  model: string;
+}
+
 export interface GuardDecision {
   allowed: boolean;
   blocked: boolean;
@@ -12,5 +18,6 @@ export interface GuardDecision {
 
 export interface GuardResult<TResult> {
   result: TResult;
+  context: ResolvedRunContext;
   decision: GuardDecision;
 }

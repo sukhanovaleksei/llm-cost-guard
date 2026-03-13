@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MissingProjectIdError } from "../src/errors/MissingProjectIdError.js";
-import { createGuard } from "../src/index.js";
+import { createGuard, MissingModelError, MissingProjectIdError, MissingProviderIdError } from "../src/index.js";
 
 describe("createGuard", () => {
   it("creates guard with default hard mode", () => {
@@ -14,36 +13,37 @@ describe("createGuard", () => {
     expect(guard.config.mode).toBe("soft");
   });
 
-  it("uses defaultProjectId from config when projectId is not provided in context", async () => {
-    const guard = createGuard({
-      defaultProjectId: "app-main",
-    });
-
-    const result = await guard.run(
-      { model: "gpt-4o-mini", providerId: "openai" },
-      async () => ({ ok: true })
-    );
-
-    expect(result.result).toEqual({ ok: true });
-    expect(result.decision.allowed).toBe(true);
-    expect(result.decision.blocked).toBe(false);
-  });
-
-  it("uses projectId from context when provided", async () => {
-    const guard = createGuard({
-      defaultProjectId: "default-project",
-    });
+  it("uses context.projectId when provided", async () => {
+    const guard = createGuard({ defaultProjectId: "default-project" });
 
     const result = await guard.run(
       {
         projectId: "request-project",
-        model: "gpt-4o-mini",
         providerId: "openai",
+        model: "gpt-4o-mini",
       },
-      async () => ({ project: "request-project" })
+      async () => ({ ok: true })
     );
 
-    expect(result.result).toEqual({ project: "request-project" });
+    expect(result.context).toEqual({
+      projectId: "request-project",
+      providerId: "openai",
+      model: "gpt-4o-mini",
+    });
+  });
+
+  it("uses config.defaultProjectId when context.projectId is missing", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
+
+    const result = await guard.run(
+      { providerId: "openai", model: "gpt-4o-mini" },
+      async () => ({ ok: true })
+    );
+
+    expect(result.result).toEqual({ ok: true });
+    expect(result.context).toEqual({ projectId: "app-main", providerId: "openai", model: "gpt-4o-mini" });
+    expect(result.decision.allowed).toBe(true);
+    expect(result.decision.blocked).toBe(false);
   });
 
   it("throws MissingProjectIdError when neither context.projectId nor config.defaultProjectId is provided", async () => {
@@ -51,45 +51,83 @@ describe("createGuard", () => {
 
     await expect(
       guard.run(
-        {
-          model: "gpt-4o-mini",
-          providerId: "openai",
-        },
+        { providerId: "openai", model: "gpt-4o-mini" },
         async () => ({ ok: true })
       )
     ).rejects.toBeInstanceOf(MissingProjectIdError);
   });
 
-  it("calls execute exactly once", async () => {
-    const guard = createGuard({
-      defaultProjectId: "app-main",
-    });
+  it("throws MissingProviderIdError when providerId is missing", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
 
+    await expect(
+      guard.run({ model: "gpt-4o-mini" }, async () => ({ ok: true }))
+    ).rejects.toBeInstanceOf(MissingProviderIdError);
+  });
+
+  it("throws MissingProviderIdError when providerId is empty string", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
+
+    await expect(
+      guard.run(
+        { providerId: "   ", model: "gpt-4o-mini" },
+        async () => ({ ok: true })
+      )
+    ).rejects.toBeInstanceOf(MissingProviderIdError);
+  });
+
+  it("throws MissingModelError when model is empty string", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
+
+    await expect(
+      guard.run(
+        { providerId: "openai", model: "   " },
+        async () => ({ ok: true })
+      )
+    ).rejects.toBeInstanceOf(MissingModelError);
+  });
+
+  it("does not call execute when run context validation fails", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    await expect(
+      guard.run(
+        { providerId: "", model: "gpt-4o-mini" },
+        execute
+      )
+    ).rejects.toBeInstanceOf(MissingProviderIdError);
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("calls execute exactly once for valid context", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
     const execute = vi.fn(async () => ({ ok: true }));
 
     await guard.run(
-      {
-        model: "gpt-4o-mini",
-        providerId: "openai",
-      },
+      { providerId: "openai", model: "gpt-4o-mini" },
       execute
     );
 
     expect(execute).toHaveBeenCalledTimes(1);
   });
 
-  it("returns allowed decision for successful execution", async () => {
-    const guard = createGuard({
-      defaultProjectId: "app-main",
-    });
+  it("returns allowed decision and resolved context for successful execution", async () => {
+    const guard = createGuard({ defaultProjectId: "app-main" });
 
     const result = await guard.run(
-      { model: "gpt-4o-mini", providerId: "openai" },
+      { providerId: "openai", model: "gpt-4o-mini" },
       async () => ({ text: "hello" })
     );
 
     expect(result).toEqual({
       result: { text: "hello" },
+      context: {
+        projectId: "app-main",
+        providerId: "openai",
+        model: "gpt-4o-mini",
+      },
       decision: {
         allowed: true,
         blocked: false,

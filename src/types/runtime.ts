@@ -9,14 +9,11 @@ export interface ResolvedGuardConfig {
 export type ExecuteFn<TResult> = () => Promise<TResult>;
 
 export interface Guard {
-  readonly config: Readonly<ResolvedGuardConfig>;
-  run<TResult>(
-    context: RunContext,
-    execute: ExecuteFn<TResult>
-  ): Promise<GuardResult<TResult>>;
+  config: ResolvedGuardConfig;
+  run<TResult>(context: RunContext, execute: ExecuteFn<TResult>): Promise<GuardResult<TResult>>;
 }
 
-export function resolveGuardConfig(config: GuardConfig = {}): ResolvedGuardConfig {
+export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfig => {
   return {
     defaultProjectId: config.defaultProjectId,
     mode: config.mode ?? "hard",
