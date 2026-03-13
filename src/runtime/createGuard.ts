@@ -1,22 +1,21 @@
-import type { GuardConfig } from "../types/config.js";
-import type { Guard, ResolvedGuardConfig } from "../types/runtime.js";
+import type { Guard, GuardConfig } from "../types/config.js";
+import type { ExecuteFn, GuardResult, RunContext } from "../types/run.js";
 import { resolveGuardConfig } from "../types/runtime.js";
 import { resolveRunContext } from "./resolveRunContext.js";
 
 export const createGuard = (config: GuardConfig = {}): Guard => {
-  const resolvedConfig: ResolvedGuardConfig = resolveGuardConfig(config);
+  const resolvedConfig = resolveGuardConfig(config);
 
   return {
     config: resolvedConfig,
-    async run(context, execute) {
-      const resolvedContext = resolveRunContext(context, resolvedConfig);
-      const result = await execute();
+    async run<TResult, TRequest = undefined>(
+      context: RunContext<TRequest>,
+      execute: ExecuteFn<TResult, TRequest>
+    ): Promise<GuardResult<TResult, TRequest>> {
+      const resolvedContext = resolveRunContext(resolvedConfig, context);
+      const result = await execute(resolvedContext);
 
-      return {
-        result,
-        context: resolvedContext,
-        decision: { allowed: true, blocked: false }
-      };
-    }
+      return { result, context: resolvedContext, decision: { allowed: true } };
+    },
   };
 }
