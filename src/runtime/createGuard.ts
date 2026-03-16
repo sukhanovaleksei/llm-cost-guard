@@ -1,3 +1,4 @@
+import { buildPreflightEstimate } from '../preflight/buildPreflightEstimate.js';
 import type { Guard, GuardConfig } from '../types/config.js';
 import type { ExecuteFn, GuardResult, RunContext } from '../types/run.js';
 import { resolveEffectiveConfig } from './resolveEffectiveConfig.js';
@@ -15,6 +16,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
     ): Promise<GuardResult<TResult>> {
       const resolvedContext = resolveRunContext(resolvedConfig, context);
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
+      const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext);
 
       const result = await execute(resolvedContext);
 
@@ -23,6 +25,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         context: resolvedContext,
         decision: { allowed: true },
         effectiveConfig,
+        preflight,
       };
     },
   };

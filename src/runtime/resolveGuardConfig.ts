@@ -1,3 +1,4 @@
+import { resolvePricingTable } from '../pricing/resolvePricingTable.js';
 import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/config.js';
 import { createRegistry } from './registry.js';
 
@@ -32,5 +33,6 @@ export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfi
       },
     },
     registry: createRegistry(config.projects ?? []),
+    pricing: resolvePricingTable(config.pricing),
   };
 };

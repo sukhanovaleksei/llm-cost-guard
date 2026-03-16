@@ -10,8 +10,11 @@ Work in progress.
 
 ```bash
 npm install llm-cost-guard
+```
 
 ## Quick start
+
+```bash
 import { createGuard } from "llm-cost-guard";
 
 const guard = createGuard({ defaultProjectId: "my-app" });
@@ -45,3 +48,4 @@ const result = await guard.run(
 );
 
 console.log(result);
+```

@@ -7,6 +7,32 @@ import {
   MissingProviderIdError,
 } from '../src/index.js';
 
+const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) => {
+  return createGuard({
+    pricing: [
+      {
+        providerId: 'openai',
+        model: 'gpt-4o-mini',
+        inputCostPerMillionTokens: 0.15,
+        outputCostPerMillionTokens: 0.6,
+      },
+      {
+        providerId: 'custom-provider',
+        model: 'x1',
+        inputCostPerMillionTokens: 1,
+        outputCostPerMillionTokens: 2,
+      },
+      {
+        providerId: 'unknown-provider',
+        model: 'x1',
+        inputCostPerMillionTokens: 1,
+        outputCostPerMillionTokens: 2,
+      },
+    ],
+    ...config,
+  });
+};
+
 describe('createGuard', () => {
   it('creates guard with default hard mode', () => {
     const guard = createGuard();
@@ -19,7 +45,7 @@ describe('createGuard', () => {
   });
 
   it('uses context.project.id when provided', async () => {
-    const guard = createGuard({ defaultProjectId: 'default-project' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'default-project' });
     const result = await guard.run(
       {
         project: { id: 'request-project' },
@@ -38,7 +64,7 @@ describe('createGuard', () => {
   });
 
   it('uses config.defaultProjectId when context.project.id is missing', async () => {
-    const guard = createGuard({ defaultProjectId: 'app-main' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'app-main' });
 
     const result = await guard.run(
       { provider: { id: 'openai', model: 'gpt-4o-mini' } },
@@ -100,7 +126,7 @@ describe('createGuard', () => {
   });
 
   it('calls execute exactly once for valid context', async () => {
-    const guard = createGuard({ defaultProjectId: 'app-main' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'app-main' });
     const execute = vi.fn(async () => ({ ok: true }));
 
     await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, execute);
@@ -109,37 +135,44 @@ describe('createGuard', () => {
   });
 
   it('returns allowed decision and resolved context for successful execution', async () => {
-    const guard = createGuard({ defaultProjectId: 'app-main' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'app-main' });
 
     const result = await guard.run(
       { provider: { id: 'openai', model: 'gpt-4o-mini' } },
       async () => ({ text: 'hello' }),
     );
 
-    expect(result).toEqual({
-      result: { text: 'hello' },
-      context: {
-        project: { id: 'app-main' },
-        provider: { id: 'openai', model: 'gpt-4o-mini' },
-        attribution: { tags: [] },
+    expect(result.result).toEqual({ text: 'hello' });
+
+    expect(result.context).toEqual({
+      project: { id: 'app-main' },
+      provider: { id: 'openai', model: 'gpt-4o-mini' },
+      attribution: { tags: [] },
+      metadata: {},
+      request: undefined,
+    });
+
+    expect(result.decision).toEqual({ allowed: true });
+
+    expect(result.effectiveConfig).toEqual({
+      mode: 'hard',
+      project: { projectId: 'app-main' },
+      provider: { providerId: 'openai', providerType: 'custom' },
+      request: {
+        tags: [],
         metadata: {},
-        request: undefined,
-      },
-      decision: { allowed: true },
-      effectiveConfig: {
-        mode: 'hard',
-        project: { projectId: 'app-main' },
-        provider: { providerId: 'openai', providerType: 'custom' },
-        request: {
-          tags: [],
-          metadata: {},
-        },
       },
     });
+
+    expect(result.preflight.providerId).toBe('openai');
+    expect(result.preflight.model).toBe('gpt-4o-mini');
+    expect(result.preflight.estimatedInputTokens).toBe(0);
+    expect(result.preflight.estimatedInputCostUsd).toBe(0);
+    expect(result.preflight.estimatedWorstCaseCostUsd).toBeUndefined();
   });
 
   it('resolves nested context and calls execute', async () => {
-    const guard = createGuard({ defaultProjectId: 'default-project' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'default-project' });
     const result = await guard.run(
       {
         provider: { id: 'openai', model: 'gpt-4o-mini' },
@@ -161,7 +194,7 @@ describe('createGuard', () => {
   });
 
   it('prefers context project.id over defaultProjectId', async () => {
-    const guard = createGuard({ defaultProjectId: 'default-project' });
+    const guard = createGuardWithPricing({ defaultProjectId: 'default-project' });
     const result = await guard.run(
       {
         project: { id: 'project-1' },
@@ -174,7 +207,7 @@ describe('createGuard', () => {
   });
 
   it('trims nested string fields', async () => {
-    const guard = createGuard();
+    const guard = createGuardWithPricing();
     const result = await guard.run(
       {
         project: { id: '  app-1  ' },
@@ -195,7 +228,7 @@ describe('createGuard', () => {
   });
 
   it('normalizes and deduplicates tags', async () => {
-    const guard = createGuard();
+    const guard = createGuardWithPricing();
     const result = await guard.run(
       {
         project: { id: 'p1' },
@@ -211,7 +244,7 @@ describe('createGuard', () => {
   });
 
   it('keeps only primitive metadata values', async () => {
-    const guard = createGuard();
+    const guard = createGuardWithPricing();
     const result = await guard.run(
       {
         project: { id: 'p1' },
@@ -234,7 +267,7 @@ describe('createGuard', () => {
   });
 
   it('accepts valid provider.maxTokens', async () => {
-    const guard = createGuard();
+    const guard = createGuardWithPricing();
     const result = await guard.run(
       {
         project: { id: 'p1' },
@@ -293,7 +326,7 @@ describe('createGuard', () => {
   });
 
   it('returns effectiveConfig from run() using provider from project scope', async () => {
-    const guard = createGuard({
+    const guard = createGuardWithPricing({
       projects: [
         {
           projectId: 'app-main',
@@ -329,7 +362,7 @@ describe('createGuard', () => {
   });
 
   it('falls back to inferred project/provider config when registry entries are missing', async () => {
-    const guard = createGuard();
+    const guard = createGuardWithPricing();
 
     const result = await guard.run(
       {
@@ -350,7 +383,7 @@ describe('createGuard', () => {
   });
 
   it('prefers request overrides.tags over project tags and defaults', async () => {
-    const guard = createGuard({
+    const guard = createGuardWithPricing({
       defaults: {
         request: {},
       },
@@ -372,7 +405,7 @@ describe('createGuard', () => {
   });
 
   it('merges request metadata from defaults, registry entries, resolved context metadata and overrides', async () => {
-    const guard = createGuard({
+    const guard = createGuardWithPricing({
       defaults: {
         request: {
           metadata: { source: 'default', env: 'dev' },
@@ -416,7 +449,7 @@ describe('createGuard', () => {
   });
 
   it('resolves providers by project scope, even with the same providerId', async () => {
-    const guard = createGuard({
+    const guard = createGuardWithPricing({
       projects: [
         {
           projectId: 'project-a',
@@ -462,7 +495,7 @@ describe('createGuard', () => {
   });
 
   it('falls back to custom provider config when provider is not registered inside the project', async () => {
-    const guard = createGuard({
+    const guard = createGuardWithPricing({
       projects: [{ projectId: 'app-main' }],
     });
 

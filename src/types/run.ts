@@ -1,12 +1,14 @@
 import type { Metadata } from '../utils/types.js';
 import type { GuardMode, ProjectConfig, ProviderConfig, ProviderType } from './config.js';
+import type { PreflightEstimate } from './preflight.js';
+import type { RequestLike } from './requests.js';
 
 export interface RunOverrides {
   tags?: string[];
   metadata?: Metadata;
 }
 
-export interface RunContext<TRequest = undefined> {
+export interface RunContext {
   project?: {
     id?: string;
   };
@@ -18,7 +20,7 @@ export interface RunContext<TRequest = undefined> {
   user?: {
     id?: string;
   };
-  request?: TRequest | undefined;
+  request?: RequestLike | undefined;
   attribution?: {
     feature?: string;
     endpoint?: string;
@@ -28,7 +30,7 @@ export interface RunContext<TRequest = undefined> {
   overrides?: RunOverrides;
 }
 
-export interface ResolvedRunContext<TRequest = undefined> {
+export interface ResolvedRunContext {
   project: {
     id: string;
   };
@@ -40,7 +42,7 @@ export interface ResolvedRunContext<TRequest = undefined> {
   user?: {
     id?: string;
   };
-  request?: TRequest | undefined;
+  request?: RequestLike | undefined;
   attribution: {
     feature?: string;
     endpoint?: string;
@@ -67,13 +69,12 @@ export interface GuardDecision {
   allowed: boolean;
 }
 
-export interface GuardResult<TResult, TRequest = undefined> {
+export interface GuardResult<TResult> {
   result: TResult;
-  context: ResolvedRunContext<TRequest>;
+  context: ResolvedRunContext;
   decision: GuardDecision;
   effectiveConfig: EffectiveRunConfig;
+  preflight: PreflightEstimate;
 }
 
-export type ExecuteFn<TResult, TRequest = undefined> = (
-  context: ResolvedRunContext<TRequest>,
-) => Promise<TResult> | TResult;
+export type ExecuteFn<TResult> = (context: ResolvedRunContext) => Promise<TResult> | TResult;

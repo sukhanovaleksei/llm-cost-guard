@@ -11,10 +11,10 @@ import {
   normalizeStringArray,
 } from '../utils/normalize.js';
 
-export const resolveRunContext = <TRequest = undefined>(
+export const resolveRunContext = (
   config: ResolvedGuardConfig,
-  context: RunContext<TRequest>,
-): ResolvedRunContext<TRequest> => {
+  context: RunContext,
+): ResolvedRunContext => {
   const projectId =
     normalizeNonEmptyString(context.project?.id) ??
     normalizeNonEmptyString(config.defaultProjectId);

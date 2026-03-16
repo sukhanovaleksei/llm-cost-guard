@@ -1,4 +1,5 @@
 import type { Metadata } from '../utils/types.js';
+import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
 import type { ExecuteFn, GuardResult, RunContext } from './run.js';
 
@@ -44,6 +45,7 @@ export interface GuardConfig {
   mode?: GuardMode;
   defaults?: GuardDefaults;
   projects?: ProjectConfig[];
+  pricing?: PricingEntry[];
 }
 
 export interface ResolvedGuardConfig {
@@ -51,6 +53,7 @@ export interface ResolvedGuardConfig {
   mode: GuardMode;
   defaults: GuardDefaults;
   registry: GuardRegistry;
+  pricing: ResolvedPricingEntry[];
 }
 
 export interface Guard {
