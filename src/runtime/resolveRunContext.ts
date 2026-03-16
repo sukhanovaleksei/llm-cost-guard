@@ -1,24 +1,23 @@
-import { InvalidMaxTokensError } from "../errors/InvalidMaxTokensError.js";
-import { MissingModelError } from "../errors/MissingModelError.js";
-import { MissingProjectIdError } from "../errors/MissingProjectIdError.js";
-import { MissingProviderIdError } from "../errors/MissingProviderIdError.js";
-import type { ResolvedGuardConfig } from "../types/config.js";
-import type { ResolvedRunContext, RunContext } from "../types/run.js";
+import { InvalidMaxTokensError } from '../errors/InvalidMaxTokensError.js';
+import { MissingModelError } from '../errors/MissingModelError.js';
+import { MissingProjectIdError } from '../errors/MissingProjectIdError.js';
+import { MissingProviderIdError } from '../errors/MissingProviderIdError.js';
+import type { ResolvedGuardConfig } from '../types/config.js';
+import type { ResolvedRunContext, RunContext } from '../types/run.js';
 import {
   normalizeMetadata,
   normalizeNonEmptyString,
   normalizePositiveInteger,
   normalizeStringArray,
-} from "../utils/normalize.js";
+} from '../utils/normalize.js';
 
 export const resolveRunContext = <TRequest = undefined>(
   config: ResolvedGuardConfig,
-  context: RunContext<TRequest>
+  context: RunContext<TRequest>,
 ): ResolvedRunContext<TRequest> => {
   const projectId =
     normalizeNonEmptyString(context.project?.id) ??
     normalizeNonEmptyString(config.defaultProjectId);
-
   if (!projectId) throw new MissingProjectIdError();
 
   const providerId = normalizeNonEmptyString(context.provider?.id);
@@ -30,8 +29,7 @@ export const resolveRunContext = <TRequest = undefined>(
   const maxTokensRaw = context.provider?.maxTokens;
   const maxTokens = normalizePositiveInteger(maxTokensRaw);
 
-  if (maxTokensRaw !== undefined && maxTokens === undefined)
-    throw new InvalidMaxTokensError();
+  if (maxTokensRaw !== undefined && maxTokens === undefined) throw new InvalidMaxTokensError();
 
   const userId = normalizeNonEmptyString(context.user?.id);
   const feature = normalizeNonEmptyString(context.attribution?.feature);
@@ -57,4 +55,4 @@ export const resolveRunContext = <TRequest = undefined>(
     },
     metadata,
   };
-}
+};

@@ -1,3 +1,11 @@
+import type { Metadata } from '../utils/types.js';
+import type { GuardMode, ProjectConfig, ProviderConfig, ProviderType } from './config.js';
+
+export interface RunOverrides {
+  tags?: string[];
+  metadata?: Metadata;
+}
+
 export interface RunContext<TRequest = undefined> {
   project?: {
     id?: string;
@@ -16,7 +24,8 @@ export interface RunContext<TRequest = undefined> {
     endpoint?: string;
     tags?: string[];
   };
-  metadata?: Record<string, string | number | boolean>;
+  metadata?: Metadata;
+  overrides?: RunOverrides;
 }
 
 export interface ResolvedRunContext<TRequest = undefined> {
@@ -37,7 +46,21 @@ export interface ResolvedRunContext<TRequest = undefined> {
     endpoint?: string;
     tags: string[];
   };
-  metadata: Record<string, string | number | boolean>;
+  metadata: Metadata;
+}
+
+export interface EffectiveProviderConfig extends ProviderConfig {
+  providerType: ProviderType;
+}
+
+export interface EffectiveRunConfig {
+  mode: GuardMode;
+  project: ProjectConfig;
+  provider: EffectiveProviderConfig;
+  request: {
+    tags: string[];
+    metadata: Metadata;
+  };
 }
 
 export interface GuardDecision {
@@ -48,8 +71,9 @@ export interface GuardResult<TResult, TRequest = undefined> {
   result: TResult;
   context: ResolvedRunContext<TRequest>;
   decision: GuardDecision;
+  effectiveConfig: EffectiveRunConfig;
 }
 
 export type ExecuteFn<TResult, TRequest = undefined> = (
-  context: ResolvedRunContext<TRequest>
+  context: ResolvedRunContext<TRequest>,
 ) => Promise<TResult> | TResult;
