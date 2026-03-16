@@ -5,6 +5,7 @@ import {
   MissingModelError,
   MissingProjectIdError,
   MissingProviderIdError,
+  RequestBudgetExceededError,
 } from '../src/index.js';
 
 const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) => {
@@ -31,6 +32,10 @@ const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) 
     ],
     ...config,
   });
+};
+
+const createGuardWithPricingAndPolicies = (config: Parameters<typeof createGuard>[0] = {}) => {
+  return createGuardWithPricing({ defaultProjectId: 'app-main', ...config });
 };
 
 describe('createGuard', () => {
@@ -152,7 +157,12 @@ describe('createGuard', () => {
       request: undefined,
     });
 
-    expect(result.decision).toEqual({ allowed: true });
+    expect(result.decision).toEqual({
+      allowed: true,
+      blocked: false,
+      action: 'allow',
+      checkedPolicies: [],
+    });
 
     expect(result.effectiveConfig).toEqual({
       mode: 'hard',
@@ -527,5 +537,189 @@ describe('createGuard', () => {
         ],
       }),
     ).toThrow('Duplicate providerId "openai" in project "app-main"');
+  });
+
+  it('allows execution when estimated worst-case cost is within request budget', async () => {
+    let executeCalled = false;
+
+    const guard = createGuard({
+      defaultProjectId: 'app',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 1 } },
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 100 },
+        request: { messages: [{ role: 'user', content: 'Hello' }] },
+      },
+      async () => {
+        executeCalled = true;
+        return { ok: true };
+      },
+    );
+
+    expect(executeCalled).toBe(true);
+    expect(result.decision.allowed).toBe(true);
+    expect(result.decision.blocked).toBe(false);
+    expect(result.decision.action).toBe('allow');
+  });
+
+  it('blocks in hard mode when estimated worst-case cost exceeds request budget limit', async () => {
+    const guard = createGuardWithPricingAndPolicies({
+      mode: 'hard',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+          request: {
+            messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+          },
+        },
+        execute,
+      ),
+    ).rejects.toBeInstanceOf(RequestBudgetExceededError);
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('blocks in hard mode when estimated input cost exceeds request input budget limit', async () => {
+    const guard = createGuardWithPricingAndPolicies({
+      mode: 'hard',
+      policies: { requestBudget: { maxEstimatedInputCostUsd: 0.0000001 } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini' },
+          request: {
+            messages: [
+              {
+                role: 'user',
+                content:
+                  'This is a deliberately long prompt intended to create enough input tokens to exceed a very tiny configured input budget limit.',
+              },
+            ],
+          },
+        },
+        execute,
+      ),
+    ).rejects.toMatchObject({
+      name: 'RequestBudgetExceededError',
+      limitType: 'input',
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('returns blocked decision in soft mode without throwing and does not call execute', async () => {
+    const guard = createGuardWithPricingAndPolicies({
+      mode: 'soft',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      execute,
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.result).toBeUndefined();
+    expect(result.decision.allowed).toBe(false);
+    expect(result.decision.blocked).toBe(true);
+    expect(result.decision.action).toBe('block');
+    expect(result.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
+    expect(typeof result.decision.reasonMessage).toBe('string');
+    expect(result.decision.reasonMessage?.length).toBeGreaterThan(0);
+    expect(result.decision.checkedPolicies).toEqual(['requestBudget']);
+
+    expect(result.violation).toBeDefined();
+    expect(result.violation?.limitType).toBe('worst-case');
+    expect(result.violation?.configuredLimitUsd).toBe(0.000001);
+    expect(typeof result.violation?.actualCostUsd).toBe('number');
+    expect(result.violation?.actualCostUsd).toBeGreaterThan(0);
+  });
+
+  it('keeps previous behavior when no policies are configured', async () => {
+    const guard = createGuardWithPricingAndPolicies({ policies: undefined });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      execute,
+    );
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.result).toEqual({ ok: true });
+    expect(result.decision.allowed).toBe(true);
+    expect(result.decision.blocked).toBe(false);
+    expect(result.decision.action).toBe('allow');
+  });
+
+  it('allows request when estimated cost is exactly equal to the configured limit', async () => {
+    const baselineGuard = createGuardWithPricingAndPolicies();
+
+    const baselineResult = await baselineGuard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const exactLimit = baselineResult.preflight.estimatedWorstCaseCostUsd;
+
+    const guard = createGuardWithPricingAndPolicies({
+      mode: 'hard',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: exactLimit } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      execute,
+    );
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.decision.allowed).toBe(true);
+    expect(result.decision.blocked).toBe(false);
+  });
+
+  it('ignores invalid request budget policy values during config resolution', () => {
+    const guard = createGuardWithPricing({
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: -1, maxEstimatedInputCostUsd: 0 },
+      },
+    });
+
+    expect(guard.config.policies.requestBudget).toBeUndefined();
   });
 });

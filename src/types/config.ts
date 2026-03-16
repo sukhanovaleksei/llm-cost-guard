@@ -1,4 +1,5 @@
 import type { Metadata } from '../utils/types.js';
+import type { GuardPolicies, ResolvedGuardPolicies } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
 import type { ExecuteFn, GuardResult, RunContext } from './run.js';
@@ -46,6 +47,7 @@ export interface GuardConfig {
   defaults?: GuardDefaults;
   projects?: ProjectConfig[];
   pricing?: PricingEntry[];
+  policies?: GuardPolicies | undefined;
 }
 
 export interface ResolvedGuardConfig {
@@ -54,12 +56,10 @@ export interface ResolvedGuardConfig {
   defaults: GuardDefaults;
   registry: GuardRegistry;
   pricing: ResolvedPricingEntry[];
+  policies: ResolvedGuardPolicies;
 }
 
 export interface Guard {
   config: ResolvedGuardConfig;
-  run<TResult = undefined>(
-    context: RunContext,
-    execute: ExecuteFn<TResult>,
-  ): Promise<GuardResult<TResult>>;
+  run<TResult>(context: RunContext, execute: ExecuteFn<TResult>): Promise<GuardResult<TResult>>;
 }

@@ -15,36 +15,39 @@ npm install llm-cost-guard
 ## Quick start
 
 ```bash
-import { createGuard } from "llm-cost-guard";
+import { createGuard } from 'llm-cost-guard';
 
-const guard = createGuard({ defaultProjectId: "my-app" });
+const guard = createGuard({
+  defaultProjectId: 'my-app',
+  pricing: [
+    {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      inputCostPerMillionTokens: 0.15,
+      outputCostPerMillionTokens: 0.6,
+    },
+  ],
+  policies: {
+    requestBudget: {
+      maxEstimatedWorstCaseCostUsd: 0.01,
+    },
+  },
+});
 
 const result = await guard.run(
   {
     provider: {
-      id: "openai",
-      model: "gpt-4o-mini",
-      maxTokens: 300
-    },
-    user: {
-      id: "user-123"
-    },
-    attribution: {
-      feature: "chat",
-      endpoint: "/api/chat",
-      tags: ["production", "support"]
-    },
-    metadata: {
-      region: "eu",
-      streaming: false
+      id: 'openai',
+      model: 'gpt-4o-mini',
+      maxTokens: 2000,
     },
     request: {
-      messages: [{ role: "user", content: "Hello" }]
-    }
+      messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+    },
   },
-  async (context) => {
-    return { ok: true, model: context.provider.model };
-  }
+  async () => {
+    return { ok: true };
+  },
 );
 
 console.log(result);

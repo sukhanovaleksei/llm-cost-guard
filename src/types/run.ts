@@ -65,16 +65,32 @@ export interface EffectiveRunConfig {
   };
 }
 
+export interface RequestBudgetViolation {
+  limitType: 'input' | 'worst-case';
+  configuredLimitUsd: number;
+  actualCostUsd: number;
+}
+
+export type GuardAction = 'allow' | 'block';
+
+export type GuardReasonCode = 'REQUEST_BUDGET_EXCEEDED';
+
 export interface GuardDecision {
   allowed: boolean;
+  blocked: boolean;
+  action: GuardAction;
+  reasonCode?: GuardReasonCode;
+  reasonMessage?: string;
+  checkedPolicies: string[];
 }
 
 export interface GuardResult<TResult> {
-  result: TResult;
+  result?: TResult;
   context: ResolvedRunContext;
   decision: GuardDecision;
   effectiveConfig: EffectiveRunConfig;
   preflight: PreflightEstimate;
+  violation?: RequestBudgetViolation | undefined;
 }
 
 export type ExecuteFn<TResult> = (context: ResolvedRunContext) => Promise<TResult> | TResult;
