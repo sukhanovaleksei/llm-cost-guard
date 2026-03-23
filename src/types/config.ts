@@ -3,6 +3,7 @@ import type { GuardPolicies, ResolvedGuardPolicies } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
 import type { ExecuteReturnValue, GuardResult, ResolvedRunContext, RunContext } from './run.js';
+import type { StorageAdapter } from './storage.js';
 
 export type GuardMode = 'soft' | 'hard';
 
@@ -48,6 +49,7 @@ export interface GuardConfig {
   projects?: ProjectConfig[];
   pricing?: PricingEntry[];
   policies?: GuardPolicies | undefined;
+  storage?: StorageAdapter;
 }
 
 export interface ResolvedGuardConfig {
@@ -57,6 +59,7 @@ export interface ResolvedGuardConfig {
   registry: GuardRegistry;
   pricing: ResolvedPricingEntry[];
   policies: ResolvedGuardPolicies;
+  storage: StorageAdapter;
 }
 
 export interface Guard {

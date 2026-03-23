@@ -5,7 +5,7 @@ import { evaluateRequestBudget } from './evaluateRequestBudget.js';
 
 export interface PolicyEvaluationResult {
   decision: GuardDecision;
-  violation?: RequestBudgetViolation;
+  violation?: RequestBudgetViolation | undefined;
 }
 
 export const evaluatePolicies = (

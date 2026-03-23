@@ -6,5 +6,6 @@ export {
   calculateWorstCaseCostUsd,
 } from './pricing/costCalculator.js';
 export { createGuard } from './runtime/createGuard.js';
+export * from './storage/index.js';
 export { estimateInputTokens } from './tokenization/estimateInputTokens.js';
 export * from './types/index.js';

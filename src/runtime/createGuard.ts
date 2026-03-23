@@ -1,5 +1,6 @@
 import { MissingPricingEntryError } from '../errors/MissingPricingEntryError.js';
 import { RequestBudgetExceededError } from '../errors/RequestBudgetExceededError.js';
+import { buildUsageRecord } from '../execution/buildUsageRecord.js';
 import { isExecuteResultEnvelope } from '../execution/isExecuteResultEnvelope.js';
 import { normalizeExecuteUsage } from '../execution/normalizeExecuteUsage.js';
 import { reconcileActualUsage } from '../execution/reconcileActualUsage.js';
@@ -33,6 +34,17 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       const policyEvaluation = evaluatePolicies(resolvedConfig, preflight);
 
       if (policyEvaluation.decision.blocked) {
+        const blockedRecord = buildUsageRecord({
+          context: resolvedContext,
+          effectiveConfig,
+          decision: policyEvaluation.decision,
+          preflight,
+          violation: policyEvaluation.violation,
+          executed: false,
+        });
+
+        await resolvedConfig.storage.recordUsage(blockedRecord);
+
         if (resolvedConfig.mode === 'hard') {
           if (policyEvaluation.violation !== undefined) {
             throw new RequestBudgetExceededError({
@@ -97,6 +109,17 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       } else {
         result = executeReturnValue;
       }
+
+      const usageRecord = buildUsageRecord({
+        context: resolvedContext,
+        effectiveConfig,
+        decision: policyEvaluation.decision,
+        preflight,
+        actualUsage,
+        executed: true,
+      });
+
+      await resolvedConfig.storage.recordUsage(usageRecord);
 
       return {
         result,

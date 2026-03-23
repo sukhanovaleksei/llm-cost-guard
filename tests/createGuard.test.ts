@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createGuard,
+  createMemoryStorage,
   MissingModelError,
   MissingProjectIdError,
   MissingProviderIdError,
@@ -875,5 +876,130 @@ describe('createGuard', () => {
     expect(typeof result.preflight.estimatedWorstCaseCostUsd).toBe('number');
 
     expect(result.actualUsage).toBeDefined();
+  });
+
+  it('records successful run into storage with effective tags and metadata', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      storage,
+      defaults: { request: { metadata: { source: 'default' } } },
+      projects: [
+        {
+          projectId: 'app-main',
+          tags: ['project-tag'],
+          providers: [
+            { providerId: 'openai', providerType: 'openai', metadata: { sdk: 'openai' } },
+          ],
+        },
+      ],
+    });
+
+    await guard.run(
+      {
+        project: { id: 'app-main' },
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 500 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+        user: { id: 'user-1' },
+        attribution: { feature: 'chat', endpoint: '/api/chat' },
+        metadata: { requestId: 'req-1' },
+        overrides: { tags: ['override-tag'], metadata: { env: 'prod' } },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      projectId: 'app-main',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      userId: 'user-1',
+      feature: 'chat',
+      endpoint: '/api/chat',
+      tags: ['override-tag'],
+      metadata: { source: 'default', sdk: 'openai', requestId: 'req-1', env: 'prod' },
+      executed: true,
+      blocked: false,
+    });
+  });
+
+  it('records actual usage into storage when execute returns usage envelope', async () => {
+    const storage = createMemoryStorage();
+    const guard = createGuardWithPricing({ storage });
+
+    await guard.run(baseContext, async () => {
+      return {
+        result: { ok: true },
+        usage: { inputTokens: 1000, outputTokens: 250 },
+      };
+    });
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.actualUsage).toBeDefined();
+    expect(records[0]?.actualUsage?.inputTokens).toBe(1000);
+    expect(records[0]?.actualUsage?.outputTokens).toBe(250);
+    expect(records[0]?.actualUsage?.totalTokens).toBe(1250);
+  });
+
+  it('records blocked request into storage in soft mode', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricingAndPolicies({
+      storage,
+      mode: 'soft',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      execute,
+    );
+
+    const records = await storage.listUsage();
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(records).toHaveLength(1);
+    expect(records[0]?.executed).toBe(false);
+    expect(records[0]?.blocked).toBe(true);
+    expect(records[0]?.violation).toBeDefined();
+    expect(records[0]?.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
+  });
+
+  it('records blocked request into storage before throwing in hard mode', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricingAndPolicies({
+      storage,
+      mode: 'hard',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+          request: {
+            messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+          },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toBeInstanceOf(RequestBudgetExceededError);
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.executed).toBe(false);
+    expect(records[0]?.blocked).toBe(true);
+    expect(records[0]?.violation).toBeDefined();
   });
 });

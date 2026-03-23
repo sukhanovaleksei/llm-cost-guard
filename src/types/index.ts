@@ -18,4 +18,11 @@ export type {
   RunContext,
   RunOverrides,
 } from './run.js';
+export type {
+  MaybePromise,
+  SpendQuery,
+  SpendSummary,
+  StorageAdapter,
+  UsageRecord,
+} from './storage.js';
 export type { ActualUsage, ExecuteUsage, NormalizedUsage } from './usage.js';

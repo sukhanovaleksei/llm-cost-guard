@@ -1,4 +1,5 @@
 import { resolvePricingTable } from '../pricing/resolvePricingTable.js';
+import { createMemoryStorage } from '../storage/createMemoryStorage.js';
 import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/config.js';
 import type {
   GuardPolicies,
@@ -61,5 +62,6 @@ export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfi
     registry: createRegistry(config.projects ?? []),
     pricing: resolvePricingTable(config.pricing),
     policies: resolvePolicies(config.policies),
+    storage: config.storage ?? createMemoryStorage(),
   };
 };
