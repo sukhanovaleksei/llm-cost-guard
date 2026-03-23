@@ -46,7 +46,15 @@ const result = await guard.run(
     },
   },
   async () => {
-    return { ok: true };
+    const response = await providerCall();
+
+    return {
+      result: response,
+      usage: {
+        inputTokens: 1200,
+        outputTokens: 300,
+      },
+    };
   },
 );
 

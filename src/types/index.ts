@@ -10,4 +10,12 @@ export type {
 export * from './policies.js';
 export type { PreflightEstimate } from './preflight.js';
 export type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
-export type { GuardDecision, GuardResult, RunContext, RunOverrides } from './run.js';
+export type {
+  ExecuteResultEnvelope,
+  ExecuteReturnValue,
+  GuardDecision,
+  GuardResult,
+  RunContext,
+  RunOverrides,
+} from './run.js';
+export type { ActualUsage, ExecuteUsage, NormalizedUsage } from './usage.js';

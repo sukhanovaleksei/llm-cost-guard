@@ -2,6 +2,16 @@ import type { Metadata } from '../utils/types.js';
 import type { GuardMode, ProjectConfig, ProviderConfig, ProviderType } from './config.js';
 import type { PreflightEstimate } from './preflight.js';
 import type { RequestLike } from './requests.js';
+import type { ActualUsage, ExecuteUsage } from './usage.js';
+
+export interface ExecuteResultEnvelope<TExecuteResult> {
+  result: TExecuteResult;
+  usage: ExecuteUsage;
+}
+
+export type ExecuteReturnValue<TExecuteResult> =
+  | TExecuteResult
+  | ExecuteResultEnvelope<TExecuteResult>;
 
 export interface RunOverrides {
   tags?: string[];
@@ -84,13 +94,12 @@ export interface GuardDecision {
   checkedPolicies: string[];
 }
 
-export interface GuardResult<TResult> {
-  result?: TResult;
+export interface GuardResult<TExecuteResult> {
+  result?: TExecuteResult;
   context: ResolvedRunContext;
   decision: GuardDecision;
   effectiveConfig: EffectiveRunConfig;
   preflight: PreflightEstimate;
+  actualUsage?: ActualUsage | undefined;
   violation?: RequestBudgetViolation | undefined;
 }
-
-export type ExecuteFn<TResult> = (context: ResolvedRunContext) => Promise<TResult> | TResult;

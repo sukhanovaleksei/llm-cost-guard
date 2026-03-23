@@ -1,8 +1,19 @@
+import { MissingPricingEntryError } from '../errors/MissingPricingEntryError.js';
 import { RequestBudgetExceededError } from '../errors/RequestBudgetExceededError.js';
+import { isExecuteResultEnvelope } from '../execution/isExecuteResultEnvelope.js';
+import { normalizeExecuteUsage } from '../execution/normalizeExecuteUsage.js';
+import { reconcileActualUsage } from '../execution/reconcileActualUsage.js';
 import { evaluatePolicies } from '../policies/evaluatePolicies.js';
 import { buildPreflightEstimate } from '../preflight/buildPreflightEstimate.js';
+import { resolvePricingEntry } from '../pricing/resolvePricingEntry.js';
 import type { Guard, GuardConfig } from '../types/config.js';
-import type { ExecuteFn, GuardResult, RunContext } from '../types/run.js';
+import type {
+  ExecuteReturnValue,
+  GuardResult,
+  ResolvedRunContext,
+  RunContext,
+} from '../types/run.js';
+import type { ActualUsage } from '../types/usage.js';
 import { resolveEffectiveConfig } from './resolveEffectiveConfig.js';
 import { resolveGuardConfig } from './resolveGuardConfig.js';
 import { resolveRunContext } from './resolveRunContext.js';
@@ -12,10 +23,10 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
   return {
     config: resolvedConfig,
-    async run<TResult = undefined>(
+    async run<TExecuteResult>(
       context: RunContext,
-      execute: ExecuteFn<TResult>,
-    ): Promise<GuardResult<TResult>> {
+      execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
+    ): Promise<GuardResult<TExecuteResult>> {
       const resolvedContext = resolveRunContext(resolvedConfig, context);
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
       const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext);
@@ -55,7 +66,37 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         };
       }
 
-      const result = await execute(resolvedContext);
+      const executeReturnValue = await execute(resolvedContext);
+
+      let result: TExecuteResult;
+      let actualUsage: ActualUsage | undefined;
+
+      if (isExecuteResultEnvelope(executeReturnValue)) {
+        result = executeReturnValue.result;
+
+        const normalizedUsage = normalizeExecuteUsage(executeReturnValue.usage);
+
+        if (normalizedUsage !== undefined) {
+          const pricingEntry = resolvePricingEntry(
+            resolvedConfig.pricing,
+            resolvedContext.provider.id,
+            resolvedContext.provider.model,
+          );
+          if (!pricingEntry)
+            throw new MissingPricingEntryError(
+              resolvedContext.provider.id,
+              resolvedContext.provider.model,
+            );
+
+          actualUsage = reconcileActualUsage({
+            usage: normalizedUsage,
+            preflight,
+            pricingEntry,
+          });
+        }
+      } else {
+        result = executeReturnValue;
+      }
 
       return {
         result,
@@ -63,6 +104,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         decision: policyEvaluation.decision,
         effectiveConfig,
         preflight,
+        actualUsage,
       };
     },
   };

@@ -2,7 +2,7 @@ import type { Metadata } from '../utils/types.js';
 import type { GuardPolicies, ResolvedGuardPolicies } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
-import type { ExecuteFn, GuardResult, RunContext } from './run.js';
+import type { ExecuteReturnValue, GuardResult, ResolvedRunContext, RunContext } from './run.js';
 
 export type GuardMode = 'soft' | 'hard';
 
@@ -61,5 +61,8 @@ export interface ResolvedGuardConfig {
 
 export interface Guard {
   config: ResolvedGuardConfig;
-  run<TResult>(context: RunContext, execute: ExecuteFn<TResult>): Promise<GuardResult<TResult>>;
+  run<TExecuteResult>(
+    context: RunContext,
+    execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
+  ): Promise<GuardResult<TExecuteResult>>;
 }

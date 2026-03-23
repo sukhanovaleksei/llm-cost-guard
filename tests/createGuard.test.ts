@@ -38,6 +38,12 @@ const createGuardWithPricingAndPolicies = (config: Parameters<typeof createGuard
   return createGuardWithPricing({ defaultProjectId: 'app-main', ...config });
 };
 
+const baseContext = {
+  project: { id: 'app-main' },
+  provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 500 },
+  request: { messages: [{ role: 'user', content: 'Hello world' }] },
+};
+
 describe('createGuard', () => {
   it('creates guard with default hard mode', () => {
     const guard = createGuard();
@@ -721,5 +727,153 @@ describe('createGuard', () => {
     });
 
     expect(guard.config.policies.requestBudget).toBeUndefined();
+  });
+
+  it('returns undefined actualUsage when execute returns plain result', async () => {
+    const guard = createGuardWithPricing();
+
+    const response = { id: 'resp_1', content: 'Hello back' };
+    const result = await guard.run(baseContext, async () => {
+      return response;
+    });
+
+    expect(result.result).toEqual(response);
+    expect(result.actualUsage).toBeUndefined();
+    expect(result.preflight).toBeDefined();
+  });
+
+  it('reconciles actual usage when execute returns usage envelope', async () => {
+    const guard = createGuardWithPricing();
+
+    const result = await guard.run(baseContext, async () => {
+      return {
+        result: { id: 'resp_2', content: 'Hello back' },
+        usage: { inputTokens: 1000, outputTokens: 250 },
+      };
+    });
+
+    expect(result.result).toEqual({ id: 'resp_2', content: 'Hello back' });
+
+    expect(result.actualUsage).toBeDefined();
+    expect(result.actualUsage?.inputTokens).toBe(1000);
+    expect(result.actualUsage?.outputTokens).toBe(250);
+    expect(result.actualUsage?.totalTokens).toBe(1250);
+
+    expect(result.actualUsage?.actualInputCostUsd).toBeCloseTo(0.00015, 12);
+    expect(result.actualUsage?.actualOutputCostUsd).toBeCloseTo(0.00015, 12);
+    expect(result.actualUsage?.actualTotalCostUsd).toBeCloseTo(0.0003, 12);
+
+    expect(typeof result.actualUsage?.deltaFromEstimatedInputCostUsd).toBe('number');
+    expect(typeof result.actualUsage?.deltaFromEstimatedWorstCaseCostUsd).toBe('number');
+  });
+
+  it('accepts usage with matching totalTokens', async () => {
+    const guard = createGuardWithPricing();
+
+    const result = await guard.run(baseContext, async () => {
+      return {
+        result: { ok: true },
+        usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      };
+    });
+
+    expect(result.actualUsage).toBeDefined();
+    expect(result.actualUsage?.inputTokens).toBe(100);
+    expect(result.actualUsage?.outputTokens).toBe(50);
+    expect(result.actualUsage?.totalTokens).toBe(150);
+
+    expect(result.actualUsage?.actualInputCostUsd).toBeCloseTo(0.000015, 12);
+    expect(result.actualUsage?.actualOutputCostUsd).toBeCloseTo(0.00003, 12);
+    expect(result.actualUsage?.actualTotalCostUsd).toBeCloseTo(0.000045, 12);
+  });
+
+  it('throws when usage.totalTokens does not match inputTokens plus outputTokens', async () => {
+    const guard = createGuardWithPricing();
+
+    await expect(
+      guard.run(baseContext, async () => {
+        return {
+          result: { ok: true },
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 999 },
+        };
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_USAGE_PAYLOAD' });
+  });
+
+  it.each([-1, 1.5, Number.NaN])(
+    'throws when usage.inputTokens is invalid: %s',
+    async (inputTokens) => {
+      const guard = createGuardWithPricing();
+
+      await expect(
+        guard.run(baseContext, async () => {
+          return { result: { ok: true }, usage: { inputTokens, outputTokens: 50 } };
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_USAGE_PAYLOAD' });
+    },
+  );
+
+  it.each([-1, 1.25, Number.NaN])(
+    'throws when usage.outputTokens is invalid: %s',
+    async (outputTokens) => {
+      const guard = createGuardWithPricing();
+
+      await expect(
+        guard.run(baseContext, async () => {
+          return { result: { ok: true }, usage: { inputTokens: 100, outputTokens } };
+        }),
+      ).rejects.toMatchObject({ code: 'INVALID_USAGE_PAYLOAD' });
+    },
+  );
+
+  it('throws when usage object is empty', async () => {
+    const guard = createGuardWithPricing();
+
+    await expect(
+      guard.run(baseContext, async () => {
+        return { result: { ok: true }, usage: {} };
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_USAGE_PAYLOAD' });
+  });
+
+  it('does not call execute when request is blocked by policy', async () => {
+    const execute = vi.fn(async () => {
+      return { result: { ok: true }, usage: { inputTokens: 100, outputTokens: 50 } };
+    });
+
+    const guard = createGuardWithPricing({
+      mode: 'hard',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    await expect(guard.run(baseContext, execute)).rejects.toBeInstanceOf(
+      RequestBudgetExceededError,
+    );
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('throws when only usage.totalTokens is provided without inputTokens and outputTokens', async () => {
+    const guard = createGuardWithPricing();
+
+    await expect(
+      guard.run(baseContext, async () => {
+        return { result: { ok: true }, usage: { totalTokens: 500 } };
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_USAGE_PAYLOAD' });
+  });
+
+  it('keeps preflight data when actual usage is returned', async () => {
+    const guard = createGuardWithPricing();
+
+    const result = await guard.run(baseContext, async () => {
+      return { result: { ok: true }, usage: { inputTokens: 100, outputTokens: 20 } };
+    });
+
+    expect(result.preflight).toBeDefined();
+    expect(typeof result.preflight.estimatedInputTokens).toBe('number');
+    expect(typeof result.preflight.estimatedInputCostUsd).toBe('number');
+    expect(typeof result.preflight.estimatedWorstCaseCostUsd).toBe('number');
+
+    expect(result.actualUsage).toBeDefined();
   });
 });
