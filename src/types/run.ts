@@ -50,7 +50,7 @@ export interface ResolvedRunContext {
     maxTokens?: number;
   };
   user?: {
-    id?: string;
+    id: string;
   };
   request?: RequestLike | undefined;
   attribution: {
@@ -76,14 +76,30 @@ export interface EffectiveRunConfig {
 }
 
 export interface RequestBudgetViolation {
+  type: 'request-budget';
   limitType: 'input' | 'worst-case';
   configuredLimitUsd: number;
   actualCostUsd: number;
 }
 
+export type AggregateBudgetWindow = 'daily' | 'monthly';
+export type AggregateBudgetScope = 'global' | 'user' | 'project' | 'provider';
+
+export interface AggregateBudgetViolation {
+  type: 'aggregate-budget';
+  scope: AggregateBudgetScope;
+  window: AggregateBudgetWindow;
+  configuredLimitUsd: number;
+  currentSpendUsd: number;
+  estimatedRequestCostUsd: number;
+  projectedSpendUsd: number;
+}
+
+export type GuardViolation = RequestBudgetViolation | AggregateBudgetViolation;
+
 export type GuardAction = 'allow' | 'block';
 
-export type GuardReasonCode = 'REQUEST_BUDGET_EXCEEDED';
+export type GuardReasonCode = 'REQUEST_BUDGET_EXCEEDED' | 'AGGREGATE_BUDGET_EXCEEDED';
 
 export interface GuardDecision {
   allowed: boolean;
@@ -101,5 +117,5 @@ export interface GuardResult<TExecuteResult> {
   effectiveConfig: EffectiveRunConfig;
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
-  violation?: RequestBudgetViolation | undefined;
+  violation?: GuardViolation | undefined;
 }

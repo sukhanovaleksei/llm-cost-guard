@@ -7,7 +7,9 @@ import {
   MissingProjectIdError,
   MissingProviderIdError,
   RequestBudgetExceededError,
+  type UsageRecord,
 } from '../src/index.js';
+import { assertRequestBudgetViolation } from './helpers/assertions.js';
 
 const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) => {
   return createGuard({
@@ -37,6 +39,44 @@ const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) 
 
 const createGuardWithPricingAndPolicies = (config: Parameters<typeof createGuard>[0] = {}) => {
   return createGuardWithPricing({ defaultProjectId: 'app-main', ...config });
+};
+
+const createStoredUsageRecord = (overrides: Partial<UsageRecord> = {}): UsageRecord => {
+  return {
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    projectId: 'app-main',
+    providerId: 'openai',
+    model: 'gpt-4o-mini',
+    tags: [],
+    metadata: {},
+    decision: { allowed: true, blocked: false, action: 'allow', checkedPolicies: [] },
+    preflight: {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      estimatedInputTokens: 0,
+      estimatedInputCostUsd: 0,
+      estimatedWorstCaseCostUsd: 0,
+      pricing: {
+        inputCostPerMillionTokens: 0.15,
+        outputCostPerMillionTokens: 0.6,
+        currency: 'USD',
+      },
+    },
+    actualUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      actualInputCostUsd: 0,
+      actualOutputCostUsd: 0,
+      actualTotalCostUsd: 0.005,
+      deltaFromEstimatedInputCostUsd: 0,
+      deltaFromEstimatedWorstCaseCostUsd: 0,
+    },
+    executed: true,
+    blocked: false,
+    ...overrides,
+  };
 };
 
 const baseContext = {
@@ -660,11 +700,12 @@ describe('createGuard', () => {
     expect(result.decision.reasonMessage?.length).toBeGreaterThan(0);
     expect(result.decision.checkedPolicies).toEqual(['requestBudget']);
 
-    expect(result.violation).toBeDefined();
-    expect(result.violation?.limitType).toBe('worst-case');
-    expect(result.violation?.configuredLimitUsd).toBe(0.000001);
-    expect(typeof result.violation?.actualCostUsd).toBe('number');
-    expect(result.violation?.actualCostUsd).toBeGreaterThan(0);
+    const violation = assertRequestBudgetViolation(result.violation);
+
+    expect(violation.limitType).toBe('worst-case');
+    expect(violation.configuredLimitUsd).toBe(0.000001);
+    expect(typeof violation.actualCostUsd).toBe('number');
+    expect(violation.actualCostUsd).toBeGreaterThan(0);
   });
 
   it('keeps previous behavior when no policies are configured', async () => {
@@ -1001,5 +1042,147 @@ describe('createGuard', () => {
     expect(records[0]?.executed).toBe(false);
     expect(records[0]?.blocked).toBe(true);
     expect(records[0]?.violation).toBeDefined();
+  });
+
+  it('blocks request when global daily budget would be exceeded', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({
+        actualUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          actualInputCostUsd: 0,
+          actualOutputCostUsd: 0,
+          actualTotalCostUsd: 0.005,
+          deltaFromEstimatedInputCostUsd: 0,
+          deltaFromEstimatedWorstCaseCostUsd: 0,
+        },
+      }),
+    );
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      storage,
+      policies: { aggregateBudget: { dailyUsd: 0.01 } },
+    });
+
+    await expect(
+      guard.run(
+        { provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 } },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toThrow('Aggregate budget exceeded');
+  });
+
+  it('blocks request when per-user daily budget would be exceeded', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({
+        userId: 'user-1',
+        actualUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          actualInputCostUsd: 0,
+          actualOutputCostUsd: 0,
+          actualTotalCostUsd: 0.005,
+          deltaFromEstimatedInputCostUsd: 0,
+          deltaFromEstimatedWorstCaseCostUsd: 0,
+        },
+      }),
+    );
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      storage,
+      policies: { aggregateBudget: { perUserDailyUsd: 0.01 } },
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 },
+          user: { id: 'user-1' },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('returns blocked decision in soft mode without calling execute for aggregate budget', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(createStoredUsageRecord());
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      policies: { aggregateBudget: { dailyUsd: 0.001 } },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 } },
+      execute,
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.decision.blocked).toBe(true);
+    expect(result.violation?.type).toBe('aggregate-budget');
+  });
+
+  it('does not count blocked records into actual spend summary', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({ blocked: true, executed: false, actualUsage: undefined }),
+    );
+
+    const summary = await storage.getSpendSummary();
+
+    expect(summary.actualTotalCostUsd).toBe(0);
+    expect(summary.blockedCount).toBe(1);
+  });
+
+  it('checks provider monthly budget within project scope', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({
+        projectId: 'app-main',
+        providerId: 'openai',
+        actualUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          actualInputCostUsd: 0,
+          actualOutputCostUsd: 0,
+          actualTotalCostUsd: 0.005,
+          deltaFromEstimatedInputCostUsd: 0,
+          deltaFromEstimatedWorstCaseCostUsd: 0,
+        },
+      }),
+    );
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      storage,
+      policies: { aggregateBudget: { perProviderMonthlyUsd: 0.01 } },
+    });
+
+    await expect(
+      guard.run(
+        {
+          project: { id: 'app-main' },
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toThrow();
   });
 });

@@ -1,3 +1,4 @@
+export * from './AggregateBudgetExceededError.js';
 export * from './GuardError.js';
 export * from './InvalidMaxTokensError.js';
 export * from './InvalidUsagePayloadError.js';

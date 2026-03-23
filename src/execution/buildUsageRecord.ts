@@ -2,7 +2,7 @@ import type { PreflightEstimate } from '../types/preflight.js';
 import type {
   EffectiveRunConfig,
   GuardDecision,
-  RequestBudgetViolation,
+  GuardViolation,
   ResolvedRunContext,
 } from '../types/run.js';
 import type { UsageRecord } from '../types/storage.js';
@@ -14,7 +14,7 @@ export interface BuildUsageRecordParams {
   decision: GuardDecision;
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
-  violation?: RequestBudgetViolation | undefined;
+  violation?: GuardViolation | undefined;
   executed: boolean;
   timestamp?: string;
 }

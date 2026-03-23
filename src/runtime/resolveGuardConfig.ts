@@ -3,6 +3,7 @@ import { createMemoryStorage } from '../storage/createMemoryStorage.js';
 import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/config.js';
 import type {
   GuardPolicies,
+  ResolvedAggregateBudgetPolicyConfig,
   ResolvedGuardPolicies,
   ResolvedRequestBudgetPolicyConfig,
 } from '../types/policies.js';
@@ -38,7 +39,10 @@ const resolveRequestBudgetPolicy = (
 };
 
 const resolvePolicies = (policies: GuardPolicies | undefined): ResolvedGuardPolicies => {
-  return { requestBudget: resolveRequestBudgetPolicy(policies) };
+  return {
+    requestBudget: resolveRequestBudgetPolicy(policies),
+    aggregateBudget: resolveAggregateBudgetPolicy(policies),
+  };
 };
 
 export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfig => {
@@ -63,5 +67,46 @@ export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfi
     pricing: resolvePricingTable(config.pricing),
     policies: resolvePolicies(config.policies),
     storage: config.storage ?? createMemoryStorage(),
+  };
+};
+
+const resolveAggregateBudgetPolicy = (
+  policies: GuardPolicies | undefined,
+): ResolvedAggregateBudgetPolicyConfig | undefined => {
+  const dailyUsd = isPositiveNumber(policies?.aggregateBudget?.dailyUsd)
+    ? policies?.aggregateBudget?.dailyUsd
+    : undefined;
+
+  const monthlyUsd = isPositiveNumber(policies?.aggregateBudget?.monthlyUsd)
+    ? policies?.aggregateBudget?.monthlyUsd
+    : undefined;
+
+  const perUserDailyUsd = isPositiveNumber(policies?.aggregateBudget?.perUserDailyUsd)
+    ? policies?.aggregateBudget?.perUserDailyUsd
+    : undefined;
+
+  const perProjectMonthlyUsd = isPositiveNumber(policies?.aggregateBudget?.perProjectMonthlyUsd)
+    ? policies?.aggregateBudget?.perProjectMonthlyUsd
+    : undefined;
+
+  const perProviderMonthlyUsd = isPositiveNumber(policies?.aggregateBudget?.perProviderMonthlyUsd)
+    ? policies?.aggregateBudget?.perProviderMonthlyUsd
+    : undefined;
+
+  if (
+    dailyUsd === undefined &&
+    monthlyUsd === undefined &&
+    perUserDailyUsd === undefined &&
+    perProjectMonthlyUsd === undefined &&
+    perProviderMonthlyUsd === undefined
+  )
+    return undefined;
+
+  return {
+    dailyUsd,
+    monthlyUsd,
+    perUserDailyUsd,
+    perProjectMonthlyUsd,
+    perProviderMonthlyUsd,
   };
 };

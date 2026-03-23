@@ -1,3 +1,4 @@
+import { AggregateBudgetExceededError } from '../errors/AggregateBudgetExceededError.js';
 import { MissingPricingEntryError } from '../errors/MissingPricingEntryError.js';
 import { RequestBudgetExceededError } from '../errors/RequestBudgetExceededError.js';
 import { buildUsageRecord } from '../execution/buildUsageRecord.js';
@@ -31,7 +32,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       const resolvedContext = resolveRunContext(resolvedConfig, context);
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
       const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext);
-      const policyEvaluation = evaluatePolicies(resolvedConfig, preflight);
+      const policyEvaluation = await evaluatePolicies(resolvedConfig, resolvedContext, preflight);
 
       if (policyEvaluation.decision.blocked) {
         const blockedRecord = buildUsageRecord({
@@ -46,7 +47,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         await resolvedConfig.storage.recordUsage(blockedRecord);
 
         if (resolvedConfig.mode === 'hard') {
-          if (policyEvaluation.violation !== undefined) {
+          if (policyEvaluation.violation?.type === 'request-budget')
             throw new RequestBudgetExceededError({
               providerId: resolvedContext.provider.id,
               model: resolvedContext.provider.model,
@@ -56,7 +57,18 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
               estimatedInputCostUsd: preflight.estimatedInputCostUsd,
               estimatedWorstCaseCostUsd: preflight.estimatedWorstCaseCostUsd ?? 0,
             });
-          }
+
+          if (policyEvaluation.violation?.type === 'aggregate-budget')
+            throw new AggregateBudgetExceededError({
+              providerId: resolvedContext.provider.id,
+              model: resolvedContext.provider.model,
+              scope: policyEvaluation.violation.scope,
+              window: policyEvaluation.violation.window,
+              configuredLimitUsd: policyEvaluation.violation.configuredLimitUsd,
+              currentSpendUsd: policyEvaluation.violation.currentSpendUsd,
+              estimatedRequestCostUsd: policyEvaluation.violation.estimatedRequestCostUsd,
+              projectedSpendUsd: policyEvaluation.violation.projectedSpendUsd,
+            });
 
           throw new RequestBudgetExceededError({
             providerId: resolvedContext.provider.id,

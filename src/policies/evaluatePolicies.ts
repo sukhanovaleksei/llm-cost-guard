@@ -1,18 +1,33 @@
 import type { ResolvedGuardConfig } from '../types/config.js';
 import type { PreflightEstimate } from '../types/preflight.js';
-import type { GuardDecision, RequestBudgetViolation } from '../types/run.js';
+import type { GuardDecision, GuardViolation, ResolvedRunContext } from '../types/run.js';
+import { evaluateAggregateBudget } from './evaluateAggregateBudget.js';
 import { evaluateRequestBudget } from './evaluateRequestBudget.js';
 
 export interface PolicyEvaluationResult {
   decision: GuardDecision;
-  violation?: RequestBudgetViolation | undefined;
+  violation?: GuardViolation | undefined;
 }
 
-export const evaluatePolicies = (
-  config: ResolvedGuardConfig,
-  preflight: PreflightEstimate,
-): PolicyEvaluationResult => {
-  const requestBudgetEvaluation = evaluateRequestBudget(config.policies.requestBudget, preflight);
+const createAllowDecision = (checkedPolicies: string[]): GuardDecision => {
+  return { allowed: true, blocked: false, action: 'allow', checkedPolicies };
+};
 
-  return requestBudgetEvaluation;
+export const evaluatePolicies = async (
+  config: ResolvedGuardConfig,
+  context: ResolvedRunContext,
+  preflight: PreflightEstimate,
+): Promise<PolicyEvaluationResult> => {
+  const requestBudgetEvaluation = evaluateRequestBudget(config.policies.requestBudget, preflight);
+  if (requestBudgetEvaluation.decision.blocked) return requestBudgetEvaluation;
+
+  const aggregateBudgetEvaluation = await evaluateAggregateBudget(config, context, preflight);
+  if (aggregateBudgetEvaluation.decision.blocked) return aggregateBudgetEvaluation;
+
+  return {
+    decision: createAllowDecision([
+      ...requestBudgetEvaluation.decision.checkedPolicies,
+      ...aggregateBudgetEvaluation.decision.checkedPolicies,
+    ]),
+  };
 };

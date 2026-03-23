@@ -45,6 +45,7 @@ export const evaluateRequestBudget = (
   const inputLimit = policy.maxEstimatedInputCostUsd;
   if (inputLimit !== undefined && preflight.estimatedInputCostUsd > inputLimit) {
     const violation: RequestBudgetViolation = {
+      type: 'request-budget',
       limitType: 'input',
       configuredLimitUsd: inputLimit,
       actualCostUsd: preflight.estimatedInputCostUsd,
@@ -65,6 +66,7 @@ export const evaluateRequestBudget = (
     preflight.estimatedWorstCaseCostUsd > worstCaseLimit
   ) {
     const violation: RequestBudgetViolation = {
+      type: 'request-budget',
       limitType: 'worst-case',
       configuredLimitUsd: worstCaseLimit,
       actualCostUsd: preflight.estimatedWorstCaseCostUsd,
