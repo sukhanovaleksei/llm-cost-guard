@@ -23,6 +23,7 @@ export * from './policies.js';
 export type { PreflightBreakdown, PreflightBreakdownPart, PreflightEstimate } from './preflight.js';
 export type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 export type {
+  AppliedDowngrade,
   BreakdownPartInput,
   ExecuteResultEnvelope,
   ExecuteReturnValue,

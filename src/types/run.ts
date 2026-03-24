@@ -120,7 +120,7 @@ export interface RateLimitViolation {
 
 export type GuardViolation = RequestBudgetViolation | AggregateBudgetViolation | RateLimitViolation;
 
-export type GuardAction = 'allow' | 'block';
+export type GuardAction = 'allow' | 'block' | 'downgrade';
 
 export type GuardReasonCode =
   | 'REQUEST_BUDGET_EXCEEDED'
@@ -144,5 +144,16 @@ export interface GuardResult<TExecuteResult> {
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
   violation?: GuardViolation | undefined;
+  appliedDowngrade?: AppliedDowngrade | undefined;
   costSpikeExplanation?: CostSpikeExplanation | undefined;
+}
+
+export interface AppliedDowngrade {
+  reason: 'request-budget';
+  originalProviderId: string;
+  effectiveProviderId: string;
+  originalModel: string;
+  effectiveModel: string;
+  originalMaxTokens?: number | undefined;
+  effectiveMaxTokens?: number | undefined;
 }

@@ -22,6 +22,7 @@ export interface GuardPolicies {
   requestBudget?: RequestBudgetPolicyConfig;
   aggregateBudget?: AggregateBudgetPolicyConfig;
   rateLimit?: RateLimitPolicyConfig;
+  downgrade?: DowngradePolicyConfig;
 }
 
 export interface ResolvedRequestBudgetPolicyConfig {
@@ -48,4 +49,23 @@ export interface ResolvedGuardPolicies {
   requestBudget?: ResolvedRequestBudgetPolicyConfig | undefined;
   aggregateBudget?: ResolvedAggregateBudgetPolicyConfig | undefined;
   rateLimit?: ResolvedRateLimitPolicyConfig | undefined;
+  downgrade?: ResolvedDowngradePolicyConfig | undefined;
+}
+
+export interface DowngradeOnRequestBudgetExceededConfig {
+  fallbackModel?: string;
+  fallbackMaxTokens?: number;
+}
+
+export interface DowngradePolicyConfig {
+  onRequestBudgetExceeded?: DowngradeOnRequestBudgetExceededConfig;
+}
+
+export interface ResolvedDowngradeOnRequestBudgetExceededConfig {
+  fallbackModel?: string | undefined;
+  fallbackMaxTokens?: number | undefined;
+}
+
+export interface ResolvedDowngradePolicyConfig {
+  onRequestBudgetExceeded?: ResolvedDowngradeOnRequestBudgetExceededConfig | undefined;
 }

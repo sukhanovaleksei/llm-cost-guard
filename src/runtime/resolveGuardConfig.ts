@@ -9,6 +9,7 @@ import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/c
 import type {
   GuardPolicies,
   ResolvedAggregateBudgetPolicyConfig,
+  ResolvedDowngradePolicyConfig,
   ResolvedGuardPolicies,
   ResolvedRateLimitPolicyConfig,
   ResolvedRequestBudgetPolicyConfig,
@@ -39,6 +40,13 @@ const resolvePositiveNumber = (value: number | undefined, fallback: number): num
   if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
 
   return fallback;
+};
+
+const resolveNonEmptyString = (value: string | undefined): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length > 0 ? trimmedValue : undefined;
 };
 
 const resolveRequestBudgetPolicy = (
@@ -126,6 +134,7 @@ const resolvePolicies = (policies: GuardPolicies | undefined): ResolvedGuardPoli
     requestBudget: resolveRequestBudgetPolicy(policies),
     aggregateBudget: resolveAggregateBudgetPolicy(policies),
     rateLimit: resolveRateLimitPolicy(policies),
+    downgrade: resolveDowngradePolicy(policies),
   };
 };
 
@@ -194,4 +203,19 @@ const resolveAggregateBudgetPolicy = (
     perProjectMonthlyUsd,
     perProviderMonthlyUsd,
   };
+};
+
+const resolveDowngradePolicy = (
+  policies: GuardPolicies | undefined,
+): ResolvedDowngradePolicyConfig | undefined => {
+  const rawPolicy = policies?.downgrade?.onRequestBudgetExceeded;
+
+  const fallbackModel = resolveNonEmptyString(rawPolicy?.fallbackModel);
+  const fallbackMaxTokens = isPositiveInteger(rawPolicy?.fallbackMaxTokens)
+    ? rawPolicy?.fallbackMaxTokens
+    : undefined;
+
+  if (fallbackModel === undefined && fallbackMaxTokens === undefined) return undefined;
+
+  return { onRequestBudgetExceeded: { fallbackModel, fallbackMaxTokens } };
 };

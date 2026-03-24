@@ -32,10 +32,25 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       context: RunContext,
       execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
     ): Promise<GuardResult<TExecuteResult>> {
-      const resolvedContext = resolveRunContext(resolvedConfig, context);
+      const initialResolvedContext = resolveRunContext(resolvedConfig, context);
+      const initialPreflight = buildPreflightEstimate(
+        resolvedConfig,
+        initialResolvedContext,
+        context.breakdown,
+      );
+
+      const policyEvaluation = await evaluatePolicies(
+        resolvedConfig,
+        initialResolvedContext,
+        initialPreflight,
+        context.breakdown,
+      );
+
+      const resolvedContext = policyEvaluation.context;
+      const preflight = policyEvaluation.preflight;
+      const appliedDowngrade = policyEvaluation.appliedDowngrade;
+
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
-      const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext, context.breakdown);
-      const policyEvaluation = await evaluatePolicies(resolvedConfig, resolvedContext, preflight);
 
       if (policyEvaluation.decision.blocked) {
         const blockedRecord = buildUsageRecord({
@@ -44,6 +59,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
           decision: policyEvaluation.decision,
           preflight,
           violation: policyEvaluation.violation,
+          appliedDowngrade,
           executed: false,
         });
 
@@ -100,6 +116,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
           effectiveConfig,
           preflight,
           violation: policyEvaluation.violation,
+          appliedDowngrade,
         };
       }
 
@@ -150,6 +167,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         decision: policyEvaluation.decision,
         preflight,
         actualUsage,
+        appliedDowngrade,
         executed: true,
       });
 
@@ -162,6 +180,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         effectiveConfig,
         preflight,
         actualUsage,
+        appliedDowngrade,
         costSpikeExplanation,
       };
     },

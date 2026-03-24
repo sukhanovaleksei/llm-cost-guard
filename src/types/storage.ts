@@ -1,6 +1,6 @@
 import type { Metadata } from '../utils/types.js';
 import type { PreflightEstimate } from './preflight.js';
-import type { GuardDecision, GuardViolation } from './run.js';
+import type { AppliedDowngrade, GuardDecision, GuardViolation } from './run.js';
 import type { ActualUsage } from './usage.js';
 
 export type MaybePromise<TValue> = TValue | Promise<TValue>;
@@ -24,6 +24,7 @@ export interface UsageRecord {
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
   violation?: GuardViolation | undefined;
+  appliedDowngrade?: AppliedDowngrade | undefined;
 
   executed: boolean;
   blocked: boolean;

@@ -14,7 +14,7 @@ npm install llm-cost-guard
 
 ## Quick start
 
-```bash
+```ts
 import { createGuard } from 'llm-cost-guard';
 
 const guard = createGuard({
@@ -55,6 +55,52 @@ const result = await guard.run(
         outputTokens: 300,
       },
     };
+  },
+);
+
+console.log(result);
+```
+
+## Automatic downgrade for over-budget requests
+
+```ts
+const guard = createGuard({
+  defaultProjectId: 'app-main',
+  pricing: [
+    {
+      providerId: 'openai',
+      model: 'gpt-4o',
+      inputCostPerMillionTokens: 2.5,
+      outputCostPerMillionTokens: 10,
+    },
+    {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      inputCostPerMillionTokens: 0.15,
+      outputCostPerMillionTokens: 0.6,
+    },
+  ],
+  policies: {
+    requestBudget: {
+      maxEstimatedWorstCaseCostUsd: 0.001,
+    },
+    downgrade: {
+      onRequestBudgetExceeded: {
+        fallbackModel: 'gpt-4o-mini',
+        fallbackMaxTokens: 500,
+      },
+    },
+  },
+});
+
+const result = await guard.run(
+  {
+    provider: { id: 'openai', model: 'gpt-4o', maxTokens: 2000 },
+    request: { messages: [{ role: 'user', content: 'Hello world' }] },
+  },
+  async (context) => {
+    // context.provider.model may already be downgraded here
+    return { ok: true, model: context.provider.model };
   },
 );
 

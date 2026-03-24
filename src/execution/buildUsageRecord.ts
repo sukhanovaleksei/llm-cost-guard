@@ -1,5 +1,6 @@
 import type { PreflightEstimate } from '../types/preflight.js';
 import type {
+  AppliedDowngrade,
   EffectiveRunConfig,
   GuardDecision,
   GuardViolation,
@@ -15,6 +16,7 @@ export interface BuildUsageRecordParams {
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
   violation?: GuardViolation | undefined;
+  appliedDowngrade?: AppliedDowngrade | undefined;
   executed: boolean;
   timestamp?: string;
 }
@@ -29,6 +31,7 @@ export const buildUsageRecord = (params: BuildUsageRecordParams): UsageRecord =>
     violation,
     executed,
     timestamp,
+    appliedDowngrade,
   } = params;
 
   return {
@@ -52,6 +55,13 @@ export const buildUsageRecord = (params: BuildUsageRecordParams): UsageRecord =>
 
     ...(actualUsage !== undefined ? { actualUsage: { ...actualUsage } } : {}),
     ...(violation !== undefined ? { violation: { ...violation } } : {}),
+    ...(appliedDowngrade !== undefined
+      ? {
+          appliedDowngrade: {
+            ...appliedDowngrade,
+          },
+        }
+      : {}),
 
     executed,
     blocked: decision.blocked,

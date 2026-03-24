@@ -10,6 +10,7 @@ import {
   RequestBudgetExceededError,
   type UsageRecord,
 } from '../src/index.js';
+import type { ResolvedRunContext } from '../src/types/run.js';
 import { assertRequestBudgetViolation } from './helpers/assertions.js';
 
 const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) => {
@@ -1412,5 +1413,238 @@ describe('createGuard', () => {
         async () => ({ ok: true }),
       ),
     ).rejects.toMatchObject({ code: 'INVALID_BREAKDOWN_PART' });
+  });
+
+  it('downgrades model when request budget is exceeded and fallbackModel fits the budget', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o',
+          inputCostPerMillionTokens: 2.5,
+          outputCostPerMillionTokens: 10,
+        },
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.001 },
+        downgrade: { onRequestBudgetExceeded: { fallbackModel: 'gpt-4o-mini' } },
+      },
+    });
+
+    const execute = vi.fn(async (context: ResolvedRunContext) => {
+      return { ok: true, model: context.provider.model };
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      execute,
+    );
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0]?.[0].provider.model).toBe('gpt-4o-mini');
+
+    expect(result.context.provider.model).toBe('gpt-4o-mini');
+    expect(result.decision.allowed).toBe(true);
+    expect(result.decision.blocked).toBe(false);
+    expect(result.decision.action).toBe('downgrade');
+
+    expect(result.appliedDowngrade).toEqual({
+      reason: 'request-budget',
+      originalProviderId: 'openai',
+      effectiveProviderId: 'openai',
+      originalModel: 'gpt-4o',
+      effectiveModel: 'gpt-4o-mini',
+      originalMaxTokens: 1000,
+      effectiveMaxTokens: 1000,
+    });
+  });
+
+  it('reduces maxTokens when request budget is exceeded and fallbackMaxTokens fits the budget', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      pricing: [
+        {
+          providerId: 'custom-provider',
+          model: 'x1',
+          inputCostPerMillionTokens: 1,
+          outputCostPerMillionTokens: 1,
+        },
+      ],
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.001 },
+        downgrade: { onRequestBudgetExceeded: { fallbackMaxTokens: 500 } },
+      },
+    });
+
+    const execute = vi.fn(async (context: ResolvedRunContext) => {
+      return { ok: true, maxTokens: context.provider.maxTokens };
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'custom-provider', model: 'x1', maxTokens: 2000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      execute,
+    );
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(execute.mock.calls[0]?.[0].provider.maxTokens).toBe(500);
+
+    expect(result.context.provider.maxTokens).toBe(500);
+    expect(result.decision.action).toBe('downgrade');
+    expect(result.appliedDowngrade).toEqual({
+      reason: 'request-budget',
+      originalProviderId: 'custom-provider',
+      effectiveProviderId: 'custom-provider',
+      originalModel: 'x1',
+      effectiveModel: 'x1',
+      originalMaxTokens: 2000,
+      effectiveMaxTokens: 500,
+    });
+  });
+
+  it('blocks request when downgrade policy exists but downgraded request is still over budget', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o',
+          inputCostPerMillionTokens: 2.5,
+          outputCostPerMillionTokens: 10,
+        },
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: {
+        requestBudget: {
+          maxEstimatedWorstCaseCostUsd: 0.00001,
+        },
+        downgrade: {
+          onRequestBudgetExceeded: {
+            fallbackModel: 'gpt-4o-mini',
+            fallbackMaxTokens: 800,
+          },
+        },
+      },
+    });
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o', maxTokens: 2000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      execute,
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.decision.blocked).toBe(true);
+    expect(result.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
+    expect(result.appliedDowngrade).toBeUndefined();
+  });
+
+  it('persists appliedDowngrade into storage for successful downgraded request', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      storage,
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o',
+          inputCostPerMillionTokens: 2.5,
+          outputCostPerMillionTokens: 10,
+        },
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.001 },
+        downgrade: { onRequestBudgetExceeded: { fallbackModel: 'gpt-4o-mini' } },
+      },
+    });
+
+    await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.appliedDowngrade).toEqual({
+      reason: 'request-budget',
+      originalProviderId: 'openai',
+      effectiveProviderId: 'openai',
+      originalModel: 'gpt-4o',
+      effectiveModel: 'gpt-4o-mini',
+      originalMaxTokens: 1000,
+      effectiveMaxTokens: 1000,
+    });
+  });
+
+  it('calculates actual usage cost using downgraded model pricing', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o',
+          inputCostPerMillionTokens: 2.5,
+          outputCostPerMillionTokens: 10,
+        },
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.001 },
+        downgrade: { onRequestBudgetExceeded: { fallbackModel: 'gpt-4o-mini' } },
+      },
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => {
+        return { result: { ok: true }, usage: { inputTokens: 1000, outputTokens: 100 } };
+      },
+    );
+
+    expect(result.context.provider.model).toBe('gpt-4o-mini');
+    expect(result.actualUsage?.actualInputCostUsd).toBeCloseTo(0.00015, 12);
+    expect(result.actualUsage?.actualOutputCostUsd).toBeCloseTo(0.00006, 12);
+    expect(result.actualUsage?.actualTotalCostUsd).toBeCloseTo(0.00021, 12);
   });
 });
