@@ -11,9 +11,17 @@ export interface AggregateBudgetPolicyConfig {
   perProviderMonthlyUsd?: number;
 }
 
+export interface RateLimitPolicyConfig {
+  requestsPerMinute?: number;
+  perUserRequestsPerMinute?: number;
+  perProjectRequestsPerMinute?: number;
+  perProviderRequestsPerMinute?: number;
+}
+
 export interface GuardPolicies {
   requestBudget?: RequestBudgetPolicyConfig;
   aggregateBudget?: AggregateBudgetPolicyConfig;
+  rateLimit?: RateLimitPolicyConfig;
 }
 
 export interface ResolvedRequestBudgetPolicyConfig {
@@ -29,7 +37,15 @@ export interface ResolvedAggregateBudgetPolicyConfig {
   perProviderMonthlyUsd?: number | undefined;
 }
 
+export interface ResolvedRateLimitPolicyConfig {
+  requestsPerMinute?: number | undefined;
+  perUserRequestsPerMinute?: number | undefined;
+  perProjectRequestsPerMinute?: number | undefined;
+  perProviderRequestsPerMinute?: number | undefined;
+}
+
 export interface ResolvedGuardPolicies {
   requestBudget?: ResolvedRequestBudgetPolicyConfig | undefined;
   aggregateBudget?: ResolvedAggregateBudgetPolicyConfig | undefined;
+  rateLimit?: ResolvedRateLimitPolicyConfig | undefined;
 }

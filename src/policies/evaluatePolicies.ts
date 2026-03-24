@@ -2,6 +2,7 @@ import type { ResolvedGuardConfig } from '../types/config.js';
 import type { PreflightEstimate } from '../types/preflight.js';
 import type { GuardDecision, GuardViolation, ResolvedRunContext } from '../types/run.js';
 import { evaluateAggregateBudget } from './evaluateAggregateBudget.js';
+import { evaluateRateLimit } from './evaluateRateLimit.js';
 import { evaluateRequestBudget } from './evaluateRequestBudget.js';
 
 export interface PolicyEvaluationResult {
@@ -24,10 +25,14 @@ export const evaluatePolicies = async (
   const aggregateBudgetEvaluation = await evaluateAggregateBudget(config, context, preflight);
   if (aggregateBudgetEvaluation.decision.blocked) return aggregateBudgetEvaluation;
 
+  const rateLimitEvaluation = await evaluateRateLimit(config, context);
+  if (rateLimitEvaluation.decision.blocked) return rateLimitEvaluation;
+
   return {
     decision: createAllowDecision([
       ...requestBudgetEvaluation.decision.checkedPolicies,
       ...aggregateBudgetEvaluation.decision.checkedPolicies,
+      ...rateLimitEvaluation.decision.checkedPolicies,
     ]),
   };
 };

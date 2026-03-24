@@ -1,4 +1,16 @@
-import type { SpendQuery, SpendSummary, StorageAdapter, UsageRecord } from '../types/storage.js';
+import type {
+  RateLimitCheckInput,
+  RateLimitState,
+  SpendQuery,
+  SpendSummary,
+  StorageAdapter,
+  UsageRecord,
+} from '../types/storage.js';
+
+interface MemoryRateLimitWindow {
+  count: number;
+  resetAtMs: number;
+}
 
 const matchesFrom = (record: UsageRecord, from?: string): boolean => {
   if (from === undefined) return true;
@@ -43,8 +55,17 @@ const createEmptySpendSummary = (): SpendSummary => {
   };
 };
 
+const resolveNowMs = (value?: string): number => {
+  return value === undefined ? Date.now() : new Date(value).getTime();
+};
+
+const toIsoString = (timestampMs: number): string => {
+  return new Date(timestampMs).toISOString();
+};
+
 export const createMemoryStorage = (): StorageAdapter => {
   const records: UsageRecord[] = [];
+  const rateLimitWindows = new Map<string, MemoryRateLimitWindow>();
 
   return {
     recordUsage(record) {
@@ -71,6 +92,45 @@ export const createMemoryStorage = (): StorageAdapter => {
             summary.actualTotalCostUsd + (record.actualUsage?.actualTotalCostUsd ?? 0),
         };
       }, createEmptySpendSummary());
+    },
+
+    checkAndIncrementRateLimit(input: RateLimitCheckInput): RateLimitState {
+      const nowMs = resolveNowMs(input.now);
+      const existingWindow = rateLimitWindows.get(input.key);
+
+      if (existingWindow === undefined || nowMs >= existingWindow.resetAtMs) {
+        const nextWindow: MemoryRateLimitWindow = {
+          count: 1,
+          resetAtMs: nowMs + input.windowMs,
+        };
+
+        rateLimitWindows.set(input.key, nextWindow);
+
+        return {
+          allowed: true,
+          count: 1,
+          remaining: Math.max(input.limit - 1, 0),
+          resetAt: toIsoString(nextWindow.resetAtMs),
+        };
+      }
+
+      if (existingWindow.count >= input.limit) {
+        return {
+          allowed: false,
+          count: existingWindow.count,
+          remaining: 0,
+          resetAt: toIsoString(existingWindow.resetAtMs),
+        };
+      }
+
+      existingWindow.count += 1;
+
+      return {
+        allowed: true,
+        count: existingWindow.count,
+        remaining: Math.max(input.limit - existingWindow.count, 0),
+        resetAt: toIsoString(existingWindow.resetAtMs),
+      };
     },
   };
 };

@@ -5,6 +5,7 @@ import type {
   GuardPolicies,
   ResolvedAggregateBudgetPolicyConfig,
   ResolvedGuardPolicies,
+  ResolvedRateLimitPolicyConfig,
   ResolvedRequestBudgetPolicyConfig,
 } from '../types/policies.js';
 import { createRegistry } from './registry.js';
@@ -17,6 +18,10 @@ const defaultGuardDefaults: GuardDefaults = {
 
 const isPositiveNumber = (value: number | undefined): boolean => {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
+};
+
+const isPositiveInteger = (value: number | undefined): boolean => {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
 };
 
 const resolveRequestBudgetPolicy = (
@@ -38,10 +43,50 @@ const resolveRequestBudgetPolicy = (
   };
 };
 
+const resolveRateLimitPolicy = (
+  policies: GuardPolicies | undefined,
+): ResolvedRateLimitPolicyConfig | undefined => {
+  const requestsPerMinute = isPositiveInteger(policies?.rateLimit?.requestsPerMinute)
+    ? policies?.rateLimit?.requestsPerMinute
+    : undefined;
+
+  const perUserRequestsPerMinute = isPositiveInteger(policies?.rateLimit?.perUserRequestsPerMinute)
+    ? policies?.rateLimit?.perUserRequestsPerMinute
+    : undefined;
+
+  const perProjectRequestsPerMinute = isPositiveInteger(
+    policies?.rateLimit?.perProjectRequestsPerMinute,
+  )
+    ? policies?.rateLimit?.perProjectRequestsPerMinute
+    : undefined;
+
+  const perProviderRequestsPerMinute = isPositiveInteger(
+    policies?.rateLimit?.perProviderRequestsPerMinute,
+  )
+    ? policies?.rateLimit?.perProviderRequestsPerMinute
+    : undefined;
+
+  if (
+    requestsPerMinute === undefined &&
+    perUserRequestsPerMinute === undefined &&
+    perProjectRequestsPerMinute === undefined &&
+    perProviderRequestsPerMinute === undefined
+  )
+    return undefined;
+
+  return {
+    requestsPerMinute,
+    perUserRequestsPerMinute,
+    perProjectRequestsPerMinute,
+    perProviderRequestsPerMinute,
+  };
+};
+
 const resolvePolicies = (policies: GuardPolicies | undefined): ResolvedGuardPolicies => {
   return {
     requestBudget: resolveRequestBudgetPolicy(policies),
     aggregateBudget: resolveAggregateBudgetPolicy(policies),
+    rateLimit: resolveRateLimitPolicy(policies),
   };
 };
 

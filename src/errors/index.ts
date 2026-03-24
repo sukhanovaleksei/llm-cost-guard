@@ -6,4 +6,5 @@ export * from './MissingModelError.js';
 export * from './MissingPricingEntryError.js';
 export * from './MissingProjectIdError.js';
 export * from './MissingProviderIdError.js';
+export * from './RateLimitedError.js';
 export * from './RequestBudgetExceededError.js';

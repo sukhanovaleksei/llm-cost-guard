@@ -115,4 +115,68 @@ describe('createMemoryStorage', () => {
     expect(summary.executedCount).toBe(1);
     expect(summary.blockedCount).toBe(0);
   });
+
+  it('allows requests until limit is reached and blocks the next one', async () => {
+    const storage = createMemoryStorage();
+
+    const first = await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 2,
+      windowMs: 60_000,
+      now: '2026-03-23T10:00:00.000Z',
+    });
+
+    const second = await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 2,
+      windowMs: 60_000,
+      now: '2026-03-23T10:00:10.000Z',
+    });
+
+    const third = await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 2,
+      windowMs: 60_000,
+      now: '2026-03-23T10:00:20.000Z',
+    });
+
+    expect(first.allowed).toBe(true);
+    expect(first.count).toBe(1);
+
+    expect(second.allowed).toBe(true);
+    expect(second.count).toBe(2);
+
+    expect(third.allowed).toBe(false);
+    expect(third.count).toBe(2);
+    expect(third.remaining).toBe(0);
+  });
+
+  it('resets rate limit window after expiration', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 1,
+      windowMs: 60_000,
+      now: '2026-03-23T10:00:00.000Z',
+    });
+
+    const blocked = await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 1,
+      windowMs: 60_000,
+      now: '2026-03-23T10:00:30.000Z',
+    });
+
+    const afterReset = await storage.checkAndIncrementRateLimit({
+      key: 'rl:global:rpm',
+      limit: 1,
+      windowMs: 60_000,
+      now: '2026-03-23T10:01:01.000Z',
+    });
+
+    expect(blocked.allowed).toBe(false);
+    expect(afterReset.allowed).toBe(true);
+    expect(afterReset.count).toBe(1);
+  });
 });

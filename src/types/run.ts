@@ -85,6 +85,9 @@ export interface RequestBudgetViolation {
 export type AggregateBudgetWindow = 'daily' | 'monthly';
 export type AggregateBudgetScope = 'global' | 'user' | 'project' | 'provider';
 
+export type RateLimitWindow = 'minute';
+export type RateLimitScope = 'global' | 'user' | 'project' | 'provider';
+
 export interface AggregateBudgetViolation {
   type: 'aggregate-budget';
   scope: AggregateBudgetScope;
@@ -95,11 +98,23 @@ export interface AggregateBudgetViolation {
   projectedSpendUsd: number;
 }
 
-export type GuardViolation = RequestBudgetViolation | AggregateBudgetViolation;
+export interface RateLimitViolation {
+  type: 'rate-limit';
+  scope: RateLimitScope;
+  window: RateLimitWindow;
+  configuredLimit: number;
+  currentCount: number;
+  retryAfterSeconds: number;
+}
+
+export type GuardViolation = RequestBudgetViolation | AggregateBudgetViolation | RateLimitViolation;
 
 export type GuardAction = 'allow' | 'block';
 
-export type GuardReasonCode = 'REQUEST_BUDGET_EXCEEDED' | 'AGGREGATE_BUDGET_EXCEEDED';
+export type GuardReasonCode =
+  | 'REQUEST_BUDGET_EXCEEDED'
+  | 'AGGREGATE_BUDGET_EXCEEDED'
+  | 'RATE_LIMITED';
 
 export interface GuardDecision {
   allowed: boolean;

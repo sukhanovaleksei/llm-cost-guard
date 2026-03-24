@@ -57,4 +57,19 @@ export interface StorageAdapter {
   recordUsage(record: UsageRecord): MaybePromise<void>;
   listUsage(query?: SpendQuery): MaybePromise<UsageRecord[]>;
   getSpendSummary(query?: SpendQuery): MaybePromise<SpendSummary>;
+  checkAndIncrementRateLimit(input: RateLimitCheckInput): MaybePromise<RateLimitState>;
+}
+
+export interface RateLimitCheckInput {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now?: string;
+}
+
+export interface RateLimitState {
+  allowed: boolean;
+  count: number;
+  remaining: number;
+  resetAt: string;
 }

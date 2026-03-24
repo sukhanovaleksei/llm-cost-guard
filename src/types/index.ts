@@ -20,6 +20,8 @@ export type {
 } from './run.js';
 export type {
   MaybePromise,
+  RateLimitCheckInput,
+  RateLimitState,
   SpendQuery,
   SpendSummary,
   StorageAdapter,

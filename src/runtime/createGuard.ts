@@ -1,5 +1,6 @@
 import { AggregateBudgetExceededError } from '../errors/AggregateBudgetExceededError.js';
 import { MissingPricingEntryError } from '../errors/MissingPricingEntryError.js';
+import { RateLimitedError } from '../errors/RateLimitedError.js';
 import { RequestBudgetExceededError } from '../errors/RequestBudgetExceededError.js';
 import { buildUsageRecord } from '../execution/buildUsageRecord.js';
 import { isExecuteResultEnvelope } from '../execution/isExecuteResultEnvelope.js';
@@ -68,6 +69,16 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
               currentSpendUsd: policyEvaluation.violation.currentSpendUsd,
               estimatedRequestCostUsd: policyEvaluation.violation.estimatedRequestCostUsd,
               projectedSpendUsd: policyEvaluation.violation.projectedSpendUsd,
+            });
+
+          if (policyEvaluation.violation?.type === 'rate-limit')
+            throw new RateLimitedError({
+              providerId: resolvedContext.provider.id,
+              model: resolvedContext.provider.model,
+              scope: policyEvaluation.violation.scope,
+              configuredLimit: policyEvaluation.violation.configuredLimit,
+              currentCount: policyEvaluation.violation.currentCount,
+              retryAfterSeconds: policyEvaluation.violation.retryAfterSeconds,
             });
 
           throw new RequestBudgetExceededError({

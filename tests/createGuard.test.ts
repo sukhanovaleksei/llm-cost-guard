@@ -6,6 +6,7 @@ import {
   MissingModelError,
   MissingProjectIdError,
   MissingProviderIdError,
+  RateLimitedError,
   RequestBudgetExceededError,
   type UsageRecord,
 } from '../src/index.js';
@@ -1184,5 +1185,137 @@ describe('createGuard', () => {
         async () => ({ ok: true }),
       ),
     ).rejects.toThrow();
+  });
+
+  it('throws RateLimitedError in hard mode when global requests per minute limit is exceeded', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'hard',
+      storage,
+      policies: { rateLimit: { requestsPerMinute: 1 } },
+    });
+
+    await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, async () => ({
+      ok: true,
+    }));
+
+    await expect(
+      guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, async () => ({ ok: true })),
+    ).rejects.toBeInstanceOf(RateLimitedError);
+  });
+
+  it('returns blocked decision in soft mode without calling execute when rate limited', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      policies: { rateLimit: { requestsPerMinute: 1 } },
+    });
+
+    await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, async () => ({
+      ok: true,
+    }));
+
+    const execute = vi.fn(async () => ({ ok: true }));
+
+    const result = await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, execute);
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.result).toBeUndefined();
+    expect(result.decision.allowed).toBe(false);
+    expect(result.decision.blocked).toBe(true);
+    expect(result.decision.reasonCode).toBe('RATE_LIMITED');
+    expect(result.violation?.type).toBe('rate-limit');
+  });
+
+  it('applies per-user requests per minute independently for each user', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      policies: { rateLimit: { perUserRequestsPerMinute: 1 } },
+    });
+
+    const firstUserFirstCall = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' }, user: { id: 'user-1' } },
+      async () => ({ ok: true }),
+    );
+
+    const firstUserSecondCall = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' }, user: { id: 'user-1' } },
+      async () => ({ ok: true }),
+    );
+
+    const secondUserFirstCall = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' }, user: { id: 'user-2' } },
+      async () => ({ ok: true }),
+    );
+
+    expect(firstUserFirstCall.decision.allowed).toBe(true);
+    expect(firstUserSecondCall.decision.blocked).toBe(true);
+    expect(secondUserFirstCall.decision.allowed).toBe(true);
+  });
+
+  it('records blocked rate-limited request into storage', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      policies: { rateLimit: { requestsPerMinute: 1 } },
+    });
+
+    await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, async () => ({
+      ok: true,
+    }));
+
+    await guard.run({ provider: { id: 'openai', model: 'gpt-4o-mini' } }, async () => ({
+      ok: true,
+    }));
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(2);
+    expect(records[1]?.executed).toBe(false);
+    expect(records[1]?.blocked).toBe(true);
+    expect(records[1]?.decision.reasonCode).toBe('RATE_LIMITED');
+    expect(records[1]?.violation?.type).toBe('rate-limit');
+  });
+
+  it('does not consume rate limit slot when request is blocked by budget policy first', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      policies: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 },
+        rateLimit: { requestsPerMinute: 1 },
+      },
+    });
+
+    const blockedByBudget = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Explain distributed systems in depth' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const nextAllowed = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    expect(blockedByBudget.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
+    expect(nextAllowed.decision.allowed).toBe(true);
   });
 });
