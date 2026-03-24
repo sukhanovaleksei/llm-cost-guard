@@ -1318,4 +1318,99 @@ describe('createGuard', () => {
     expect(blockedByBudget.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
     expect(nextAllowed.decision.allowed).toBe(true);
   });
+
+  it('persists preflight breakdown into storage', async () => {
+    const storage = createMemoryStorage();
+    const guard = createGuardWithPricing({ storage });
+
+    await guard.run(
+      {
+        project: { id: 'app-main' },
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 500 },
+        request: {
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant' },
+            { role: 'user', content: 'Explain queues in Node.js' },
+          ],
+        },
+        breakdown: {
+          parts: [
+            { key: 'system', content: 'You are a helpful assistant' },
+            { key: 'user', content: 'Explain queues in Node.js' },
+          ],
+        },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.preflight.breakdown).toBeDefined();
+    expect(records[0]?.preflight.breakdown?.parts).toHaveLength(2);
+    expect(records[0]?.preflight.breakdown?.parts[0]?.key).toBe('system');
+    expect(records[0]?.preflight.breakdown?.parts[1]?.key).toBe('user');
+  });
+
+  it('persists preflight breakdown for blocked request in soft mode', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricingAndPolicies({
+      storage,
+      mode: 'soft',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+    });
+
+    await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: {
+          messages: [
+            { role: 'system', content: 'You are a helpful assistant' },
+            { role: 'user', content: 'Explain distributed systems in depth' },
+          ],
+        },
+        breakdown: {
+          parts: [
+            { key: 'system', content: 'You are a helpful assistant' },
+            { key: 'user', content: 'Explain distributed systems in depth' },
+          ],
+        },
+      },
+      async () => ({ ok: true }),
+    );
+
+    const records = await storage.listUsage();
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.executed).toBe(false);
+    expect(records[0]?.blocked).toBe(true);
+    expect(records[0]?.preflight.breakdown).toBeDefined();
+    expect(records[0]?.preflight.breakdown?.parts).toHaveLength(2);
+  });
+
+  it('throws when breakdown part key is empty after trim', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini' },
+          request: 'Hello world',
+          breakdown: { parts: [{ key: '   ', content: 'Hello world' }] },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_BREAKDOWN_PART' });
+  });
 });

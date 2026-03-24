@@ -4,6 +4,21 @@ export interface PreflightPricingSummary {
   currency: 'USD';
 }
 
+export interface PreflightBreakdownPart {
+  key: string;
+  estimatedTokens: number;
+  estimatedInputCostUsd: number;
+}
+
+export interface PreflightBreakdown {
+  parts: PreflightBreakdownPart[];
+  attributedEstimatedTokens: number;
+  attributedEstimatedInputCostUsd: number;
+  totalEstimatedInputTokens: number;
+  unattributedEstimatedTokens: number;
+  unattributedEstimatedInputCostUsd: number;
+}
+
 export interface PreflightEstimate {
   providerId: string;
   model: string;
@@ -11,4 +26,5 @@ export interface PreflightEstimate {
   estimatedInputCostUsd: number;
   estimatedWorstCaseCostUsd?: number | undefined;
   pricing: PreflightPricingSummary;
+  breakdown?: PreflightBreakdown | undefined;
 }

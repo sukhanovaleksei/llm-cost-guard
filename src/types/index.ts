@@ -8,13 +8,15 @@ export type {
   ProviderType,
 } from './config.js';
 export * from './policies.js';
-export type { PreflightEstimate } from './preflight.js';
+export type { PreflightBreakdown, PreflightBreakdownPart, PreflightEstimate } from './preflight.js';
 export type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 export type {
+  BreakdownPartInput,
   ExecuteResultEnvelope,
   ExecuteReturnValue,
   GuardDecision,
   GuardResult,
+  RunBreakdownInput,
   RunContext,
   RunOverrides,
 } from './run.js';

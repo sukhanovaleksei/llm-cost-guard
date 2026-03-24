@@ -4,6 +4,15 @@ import type { PreflightEstimate } from './preflight.js';
 import type { RequestLike } from './requests.js';
 import type { ActualUsage, ExecuteUsage } from './usage.js';
 
+export interface BreakdownPartInput {
+  key: string;
+  content: RequestLike | undefined;
+}
+
+export interface RunBreakdownInput {
+  parts: BreakdownPartInput[];
+}
+
 export interface ExecuteResultEnvelope<TExecuteResult> {
   result: TExecuteResult;
   usage: ExecuteUsage;
@@ -31,6 +40,7 @@ export interface RunContext {
     id?: string;
   };
   request?: RequestLike | undefined;
+  breakdown?: RunBreakdownInput | undefined;
   attribution?: {
     feature?: string;
     endpoint?: string;

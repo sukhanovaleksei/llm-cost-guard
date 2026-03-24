@@ -32,7 +32,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
     ): Promise<GuardResult<TExecuteResult>> {
       const resolvedContext = resolveRunContext(resolvedConfig, context);
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
-      const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext);
+      const preflight = buildPreflightEstimate(resolvedConfig, resolvedContext, context.breakdown);
       const policyEvaluation = await evaluatePolicies(resolvedConfig, resolvedContext, preflight);
 
       if (policyEvaluation.decision.blocked) {

@@ -4,11 +4,13 @@ import { resolvePricingEntry } from '../pricing/resolvePricingEntry.js';
 import { estimateInputTokens } from '../tokenization/estimateInputTokens.js';
 import type { ResolvedGuardConfig } from '../types/config.js';
 import type { PreflightEstimate } from '../types/preflight.js';
-import type { ResolvedRunContext } from '../types/run.js';
+import type { ResolvedRunContext, RunBreakdownInput } from '../types/run.js';
+import { buildPreflightBreakdown } from './buildPreflightBreakdown.js';
 
 export const buildPreflightEstimate = (
   config: ResolvedGuardConfig,
   context: ResolvedRunContext,
+  breakdown: RunBreakdownInput | undefined,
 ): PreflightEstimate => {
   const providerId = context.provider.id;
   const model = context.provider.model;
@@ -24,6 +26,8 @@ export const buildPreflightEstimate = (
     pricingEntry,
   );
 
+  const preflightBreakdown = buildPreflightBreakdown(breakdown, estimatedInputTokens, pricingEntry);
+
   return {
     providerId,
     model,
@@ -35,5 +39,6 @@ export const buildPreflightEstimate = (
       outputCostPerMillionTokens: pricingEntry.outputCostPerMillionTokens,
       currency: pricingEntry.currency,
     },
+    breakdown: preflightBreakdown,
   };
 };
