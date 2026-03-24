@@ -1,4 +1,5 @@
 import type { Metadata } from '../utils/types.js';
+import type { GuardAnalyticsConfig, ResolvedGuardAnalyticsConfig } from './analytics.js';
 import type { GuardPolicies, ResolvedGuardPolicies } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
@@ -49,6 +50,7 @@ export interface GuardConfig {
   projects?: ProjectConfig[];
   pricing?: PricingEntry[];
   policies?: GuardPolicies | undefined;
+  analytics?: GuardAnalyticsConfig;
   storage?: StorageAdapter;
 }
 
@@ -59,6 +61,7 @@ export interface ResolvedGuardConfig {
   registry: GuardRegistry;
   pricing: ResolvedPricingEntry[];
   policies: ResolvedGuardPolicies;
+  analytics: ResolvedGuardAnalyticsConfig;
   storage: StorageAdapter;
 }
 

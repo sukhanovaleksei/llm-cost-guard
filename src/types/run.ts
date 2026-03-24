@@ -1,4 +1,5 @@
 import type { Metadata } from '../utils/types.js';
+import type { CostSpikeExplanation } from './analytics.js';
 import type { GuardMode, ProjectConfig, ProviderConfig, ProviderType } from './config.js';
 import type { PreflightEstimate } from './preflight.js';
 import type { RequestLike } from './requests.js';
@@ -143,4 +144,5 @@ export interface GuardResult<TExecuteResult> {
   preflight: PreflightEstimate;
   actualUsage?: ActualUsage | undefined;
   violation?: GuardViolation | undefined;
+  costSpikeExplanation?: CostSpikeExplanation | undefined;
 }

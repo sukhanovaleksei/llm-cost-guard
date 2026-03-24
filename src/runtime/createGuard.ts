@@ -1,3 +1,4 @@
+import { explainCostSpike } from '../analytics/explainCostSpike.js';
 import { AggregateBudgetExceededError } from '../errors/AggregateBudgetExceededError.js';
 import { MissingPricingEntryError } from '../errors/MissingPricingEntryError.js';
 import { RateLimitedError } from '../errors/RateLimitedError.js';
@@ -9,6 +10,7 @@ import { reconcileActualUsage } from '../execution/reconcileActualUsage.js';
 import { evaluatePolicies } from '../policies/evaluatePolicies.js';
 import { buildPreflightEstimate } from '../preflight/buildPreflightEstimate.js';
 import { resolvePricingEntry } from '../pricing/resolvePricingEntry.js';
+import type { CostSpikeExplanation } from '../types/analytics.js';
 import type { Guard, GuardConfig } from '../types/config.js';
 import type {
   ExecuteReturnValue,
@@ -105,6 +107,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
       let result: TExecuteResult;
       let actualUsage: ActualUsage | undefined;
+      let costSpikeExplanation: CostSpikeExplanation | undefined;
 
       if (isExecuteResultEnvelope(executeReturnValue)) {
         result = executeReturnValue.result;
@@ -127,6 +130,14 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
             usage: normalizedUsage,
             preflight,
             pricingEntry,
+          });
+
+          costSpikeExplanation = await explainCostSpike({
+            storage: resolvedConfig.storage,
+            config: resolvedConfig.analytics.costSpike,
+            context: resolvedContext,
+            preflight,
+            actualUsage,
           });
         }
       } else {
@@ -151,6 +162,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         effectiveConfig,
         preflight,
         actualUsage,
+        costSpikeExplanation,
       };
     },
   };

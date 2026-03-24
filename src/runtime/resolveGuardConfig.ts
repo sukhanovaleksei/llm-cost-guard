@@ -1,5 +1,10 @@
 import { resolvePricingTable } from '../pricing/resolvePricingTable.js';
 import { createMemoryStorage } from '../storage/createMemoryStorage.js';
+import type {
+  GuardAnalyticsConfig,
+  ResolvedCostSpikeConfig,
+  ResolvedGuardAnalyticsConfig,
+} from '../types/analytics.js';
 import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/config.js';
 import type {
   GuardPolicies,
@@ -22,6 +27,18 @@ const isPositiveNumber = (value: number | undefined): boolean => {
 
 const isPositiveInteger = (value: number | undefined): boolean => {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
+};
+
+const resolvePositiveInteger = (value: number | undefined, fallback: number): number => {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+
+  return fallback;
+};
+
+const resolvePositiveNumber = (value: number | undefined, fallback: number): number => {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+
+  return fallback;
 };
 
 const resolveRequestBudgetPolicy = (
@@ -82,6 +99,28 @@ const resolveRateLimitPolicy = (
   };
 };
 
+const resolveCostSpikeConfig = (
+  analytics: GuardAnalyticsConfig | undefined,
+): ResolvedCostSpikeConfig => {
+  const costSpike = analytics?.costSpike;
+
+  return {
+    enabled: costSpike?.enabled ?? false,
+    minBaselineSamples: resolvePositiveInteger(costSpike?.minBaselineSamples, 5),
+    multiplierThreshold: resolvePositiveNumber(costSpike?.multiplierThreshold, 3),
+    absoluteDeltaUsdThreshold: resolvePositiveNumber(costSpike?.absoluteDeltaUsdThreshold, 0.01),
+    compareByFeature: costSpike?.compareByFeature ?? true,
+    compareByEndpoint: costSpike?.compareByEndpoint ?? true,
+    maxTopDrivers: resolvePositiveInteger(costSpike?.maxTopDrivers, 5),
+  };
+};
+
+const resolveAnalytics = (
+  analytics: GuardAnalyticsConfig | undefined,
+): ResolvedGuardAnalyticsConfig => {
+  return { costSpike: resolveCostSpikeConfig(analytics) };
+};
+
 const resolvePolicies = (policies: GuardPolicies | undefined): ResolvedGuardPolicies => {
   return {
     requestBudget: resolveRequestBudgetPolicy(policies),
@@ -111,6 +150,7 @@ export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfi
     registry: createRegistry(config.projects ?? []),
     pricing: resolvePricingTable(config.pricing),
     policies: resolvePolicies(config.policies),
+    analytics: resolveAnalytics(config.analytics),
     storage: config.storage ?? createMemoryStorage(),
   };
 };

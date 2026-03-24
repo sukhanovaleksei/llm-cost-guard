@@ -1,4 +1,16 @@
 export type {
+  BreakdownBaselinePart,
+  BreakdownBaselineSnapshot,
+  CostBaselineSnapshot,
+  CostSpikeConfig,
+  CostSpikeDriver,
+  CostSpikeDriverKind,
+  CostSpikeExplanation,
+  GuardAnalyticsConfig,
+  ResolvedCostSpikeConfig,
+  ResolvedGuardAnalyticsConfig,
+} from './analytics.js';
+export type {
   Guard,
   GuardConfig,
   GuardDefaults,
