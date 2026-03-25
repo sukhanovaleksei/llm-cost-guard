@@ -1,3 +1,5 @@
+import type { Metadata } from './types.js';
+
 export const isPositiveNumber = (value: number | undefined): boolean => {
   return typeof value === 'number' && Number.isFinite(value) && value > 0;
 };
@@ -27,4 +29,8 @@ export const resolveNonEmptyString = (value: string | undefined): string | undef
 
 export const isNonNegativeInteger = (value: number): boolean => {
   return Number.isInteger(value) && value >= 0;
+};
+
+export const hasMetadata = (metadata: Metadata): boolean => {
+  return Object.keys(metadata).length > 0;
 };

@@ -19,6 +19,7 @@ import type {
   RunContext,
 } from '../types/run.js';
 import type { ActualUsage } from '../types/usage.js';
+import { ensureRuntimeRegistration } from './ensureRuntimeRegistration.js';
 import { resolveEffectiveConfig } from './resolveEffectiveConfig.js';
 import { resolveGuardConfig } from './resolveGuardConfig.js';
 import { resolveRunContext } from './resolveRunContext.js';
@@ -28,11 +29,31 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
   return {
     config: resolvedConfig,
+
+    addProject(project): void {
+      resolvedConfig.registry.addProject(project);
+    },
+
+    addProvider(projectId, provider): void {
+      resolvedConfig.registry.addProvider(projectId, provider);
+    },
+
+    hasProject(projectId): boolean {
+      return resolvedConfig.registry.hasProject(projectId);
+    },
+
+    hasProvider(projectId, providerId): boolean {
+      return resolvedConfig.registry.hasProvider(projectId, providerId);
+    },
+
     async run<TExecuteResult>(
       context: RunContext,
       execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
     ): Promise<GuardResult<TExecuteResult>> {
       const initialResolvedContext = resolveRunContext(resolvedConfig, context);
+
+      ensureRuntimeRegistration(resolvedConfig, initialResolvedContext, context);
+
       const initialPreflight = buildPreflightEstimate(
         resolvedConfig,
         initialResolvedContext,

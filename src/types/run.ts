@@ -49,6 +49,9 @@ export interface RunContext {
   };
   metadata?: Metadata;
   overrides?: RunOverrides;
+
+  projectConfig?: RunProjectConfig;
+  providerConfig?: RunProviderConfig;
 }
 
 export interface ResolvedRunContext {
@@ -156,4 +159,18 @@ export interface AppliedDowngrade {
   effectiveModel: string;
   originalMaxTokens?: number | undefined;
   effectiveMaxTokens?: number | undefined;
+}
+
+export interface RunProjectConfig {
+  projectId: string;
+  metadata?: Metadata;
+  tags?: string[];
+  defaultProviderId?: string;
+}
+
+export interface RunProviderConfig {
+  providerId: string;
+  providerType?: ProviderType;
+  metadata?: Metadata;
+  pricingRef?: string;
 }

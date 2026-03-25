@@ -32,6 +32,8 @@ export type {
   RunBreakdownInput,
   RunContext,
   RunOverrides,
+  RunProjectConfig,
+  RunProviderConfig,
 } from './run.js';
 export type {
   MaybePromise,

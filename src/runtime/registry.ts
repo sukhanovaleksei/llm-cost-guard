@@ -1,14 +1,45 @@
 import type { ProjectConfig, ProviderConfig } from '../types/config.js';
 import type { GuardRegistry, ProjectRegistryEntry } from '../types/registry.js';
+import {
+  normalizeMetadata,
+  normalizeNonEmptyString,
+  normalizeStringArray,
+} from '../utils/normalize.js';
+import { hasMetadata } from '../utils/validation.js';
 
-const assertNoDuplicateProjectIds = (projects: ProjectConfig[]): void => {
-  const seen = new Set<string>();
+const normalizeProviderConfig = (provider: ProviderConfig): ProviderConfig => {
+  const providerId = normalizeNonEmptyString(provider.providerId);
+  if (providerId === undefined) throw new Error('provider.providerId must be a non-empty string');
 
-  for (const project of projects) {
-    if (seen.has(project.projectId)) throw new Error(`Duplicate projectId: "${project.projectId}"`);
+  const pricingRef = normalizeNonEmptyString(provider.pricingRef);
+  const metadata = normalizeMetadata(provider.metadata);
 
-    seen.add(project.projectId);
-  }
+  return {
+    providerId,
+    ...(provider.providerType !== undefined ? { providerType: provider.providerType } : {}),
+    ...(pricingRef !== undefined ? { pricingRef } : {}),
+    ...(hasMetadata(metadata) ? { metadata } : {}),
+  };
+};
+
+const normalizeProjectConfig = (project: ProjectConfig): ProjectConfig => {
+  const projectId = normalizeNonEmptyString(project.projectId);
+  if (projectId === undefined) throw new Error('project.projectId must be a non-empty string');
+
+  const metadata = normalizeMetadata(project.metadata);
+  const tags = normalizeStringArray(project.tags);
+  const defaultProviderId = normalizeNonEmptyString(project.defaultProviderId);
+  const providers = Array.isArray(project.providers)
+    ? project.providers.map((provider) => normalizeProviderConfig(provider))
+    : [];
+
+  return {
+    projectId,
+    ...(hasMetadata(metadata) ? { metadata } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
+    ...(defaultProviderId !== undefined ? { defaultProviderId } : {}),
+    ...(providers.length > 0 ? { providers } : {}),
+  };
 };
 
 const assertNoDuplicateProviderIds = (projectId: string, providers: ProviderConfig[]): void => {
@@ -22,35 +53,78 @@ const assertNoDuplicateProviderIds = (projectId: string, providers: ProviderConf
   }
 };
 
-export const createRegistry = (projects: ProjectConfig[] = []): GuardRegistry => {
-  assertNoDuplicateProjectIds(projects);
+const createProjectRegistryEntry = (project: ProjectConfig): ProjectRegistryEntry => {
+  const normalizedProject = normalizeProjectConfig(project);
+  const providers = normalizedProject.providers ?? [];
 
-  const projectMap = new Map<string, ProjectRegistryEntry>();
-
-  for (const project of projects) {
-    const providers = project.providers ?? [];
-    assertNoDuplicateProviderIds(project.projectId, providers);
-
-    const providerMap = new Map<string, ProviderConfig>(
-      providers.map((provider) => [provider.providerId, provider]),
-    );
-
-    projectMap.set(project.projectId, { ...project, providers: providerMap });
-  }
+  assertNoDuplicateProviderIds(normalizedProject.projectId, providers);
 
   return {
+    projectId: normalizedProject.projectId,
+    ...(normalizedProject.metadata !== undefined ? { metadata: normalizedProject.metadata } : {}),
+    ...(normalizedProject.tags !== undefined ? { tags: normalizedProject.tags } : {}),
+    ...(normalizedProject.defaultProviderId !== undefined
+      ? { defaultProviderId: normalizedProject.defaultProviderId }
+      : {}),
+    providers: new Map(providers.map((provider) => [provider.providerId, provider])),
+  };
+};
+
+export const createRegistry = (projects: ProjectConfig[] = []): GuardRegistry => {
+  const projectMap = new Map<string, ProjectRegistryEntry>();
+
+  const registry: GuardRegistry = {
     projects: projectMap,
-    hasProject(projectId: string) {
+
+    hasProject(projectId: string): boolean {
       return projectMap.has(projectId);
     },
-    getProject(projectId: string) {
+
+    getProject(projectId: string): ProjectRegistryEntry | undefined {
       return projectMap.get(projectId);
     },
-    hasProvider(projectId: string, providerId: string) {
+
+    addProject(project: ProjectConfig): ProjectRegistryEntry {
+      const entry = createProjectRegistryEntry(project);
+
+      if (projectMap.has(entry.projectId)) {
+        throw new Error(`Duplicate projectId: "${entry.projectId}"`);
+      }
+
+      projectMap.set(entry.projectId, entry);
+      return entry;
+    },
+
+    hasProvider(projectId: string, providerId: string): boolean {
       return projectMap.get(projectId)?.providers.has(providerId) ?? false;
     },
-    getProvider(projectId: string, providerId: string) {
+
+    getProvider(projectId: string, providerId: string): ProviderConfig | undefined {
       return projectMap.get(projectId)?.providers.get(providerId);
     },
+
+    addProvider(projectId: string, provider: ProviderConfig): ProviderConfig {
+      const normalizedProjectId = normalizeNonEmptyString(projectId);
+      if (normalizedProjectId === undefined)
+        throw new Error('projectId must be a non-empty string');
+
+      const projectEntry = projectMap.get(normalizedProjectId);
+      if (projectEntry === undefined)
+        throw new Error(`Project "${normalizedProjectId}" is not registered`);
+
+      const normalizedProvider = normalizeProviderConfig(provider);
+
+      if (projectEntry.providers.has(normalizedProvider.providerId))
+        throw new Error(
+          `Duplicate providerId "${normalizedProvider.providerId}" in project "${normalizedProjectId}"`,
+        );
+
+      projectEntry.providers.set(normalizedProvider.providerId, normalizedProvider);
+      return normalizedProvider;
+    },
   };
+
+  for (const project of projects) registry.addProject(project);
+
+  return registry;
 };

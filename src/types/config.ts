@@ -67,6 +67,13 @@ export interface ResolvedGuardConfig {
 
 export interface Guard {
   config: ResolvedGuardConfig;
+
+  addProject(project: ProjectConfig): void;
+  addProvider(projectId: string, provider: ProviderConfig): void;
+
+  hasProject(projectId: string): boolean;
+  hasProvider(projectId: string, providerId: string): boolean;
+
   run<TExecuteResult>(
     context: RunContext,
     execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
