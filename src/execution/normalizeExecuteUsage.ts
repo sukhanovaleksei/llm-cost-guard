@@ -1,6 +1,6 @@
 import { InvalidUsagePayloadError } from '../errors/InvalidUsagePayloadError.js';
 import type { ExecuteUsage, NormalizedUsage } from '../types/usage.js';
-import { isNonNegativeInteger } from './isNonNegativeInteger.js';
+import { isNonNegativeInteger } from '../utils/validation.js';
 
 export const normalizeExecuteUsage = (
   usage: ExecuteUsage | undefined,

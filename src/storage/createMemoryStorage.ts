@@ -1,44 +1,17 @@
 import type {
   RateLimitCheckInput,
   RateLimitState,
-  SpendQuery,
   SpendSummary,
   StorageAdapter,
   UsageRecord,
 } from '../types/storage.js';
+import { matchesQuery } from '../utils/query.js';
+import { resolveNowMs, toIsoString } from '../utils/time.js';
 
 interface MemoryRateLimitWindow {
   count: number;
   resetAtMs: number;
 }
-
-const matchesFrom = (record: UsageRecord, from?: string): boolean => {
-  if (from === undefined) return true;
-
-  return new Date(record.timestamp).getTime() >= new Date(from).getTime();
-};
-
-const matchesTo = (record: UsageRecord, to?: string): boolean => {
-  if (to === undefined) return true;
-
-  return new Date(record.timestamp).getTime() <= new Date(to).getTime();
-};
-
-const matchesQuery = (record: UsageRecord, query?: SpendQuery): boolean => {
-  if (query === undefined) return true;
-
-  if (query.projectId !== undefined && record.projectId !== query.projectId) return false;
-  if (query.providerId !== undefined && record.providerId !== query.providerId) return false;
-  if (query.model !== undefined && record.model !== query.model) return false;
-  if (query.userId !== undefined && record.userId !== query.userId) return false;
-  if (query.feature !== undefined && record.feature !== query.feature) return false;
-  if (query.endpoint !== undefined && record.endpoint !== query.endpoint) return false;
-  if (query.tag !== undefined && !record.tags.includes(query.tag)) return false;
-  if (!matchesFrom(record, query.from)) return false;
-  if (!matchesTo(record, query.to)) return false;
-
-  return true;
-};
 
 const cloneUsageRecord = (record: UsageRecord): UsageRecord => {
   return structuredClone(record);
@@ -53,14 +26,6 @@ const createEmptySpendSummary = (): SpendSummary => {
     estimatedWorstCaseCostUsd: 0,
     actualTotalCostUsd: 0,
   };
-};
-
-const resolveNowMs = (value?: string): number => {
-  return value === undefined ? Date.now() : new Date(value).getTime();
-};
-
-const toIsoString = (timestampMs: number): string => {
-  return new Date(timestampMs).toISOString();
 };
 
 export const createMemoryStorage = (): StorageAdapter => {
@@ -114,14 +79,13 @@ export const createMemoryStorage = (): StorageAdapter => {
         };
       }
 
-      if (existingWindow.count >= input.limit) {
+      if (existingWindow.count >= input.limit)
         return {
           allowed: false,
           count: existingWindow.count,
           remaining: 0,
           resetAt: toIsoString(existingWindow.resetAtMs),
         };
-      }
 
       existingWindow.count += 1;
 

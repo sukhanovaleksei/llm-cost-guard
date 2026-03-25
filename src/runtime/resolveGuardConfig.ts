@@ -14,39 +14,19 @@ import type {
   ResolvedRateLimitPolicyConfig,
   ResolvedRequestBudgetPolicyConfig,
 } from '../types/policies.js';
+import {
+  isPositiveInteger,
+  isPositiveNumber,
+  resolveNonEmptyString,
+  resolvePositiveInteger,
+  resolvePositiveNumber,
+} from '../utils/validation.js';
 import { createRegistry } from './registry.js';
 
 const defaultGuardDefaults: GuardDefaults = {
   project: { metadata: {} },
   provider: { metadata: {} },
   request: { metadata: {} },
-};
-
-const isPositiveNumber = (value: number | undefined): boolean => {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0;
-};
-
-const isPositiveInteger = (value: number | undefined): boolean => {
-  return typeof value === 'number' && Number.isInteger(value) && value > 0;
-};
-
-const resolvePositiveInteger = (value: number | undefined, fallback: number): number => {
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
-
-  return fallback;
-};
-
-const resolvePositiveNumber = (value: number | undefined, fallback: number): number => {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
-
-  return fallback;
-};
-
-const resolveNonEmptyString = (value: string | undefined): string | undefined => {
-  if (typeof value !== 'string') return undefined;
-
-  const trimmedValue = value.trim();
-  return trimmedValue.length > 0 ? trimmedValue : undefined;
 };
 
 const resolveRequestBudgetPolicy = (
