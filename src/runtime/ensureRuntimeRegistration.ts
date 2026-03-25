@@ -1,3 +1,4 @@
+import { normalizeScopedLimits } from '../policies/normalizeScopedLimits.js';
 import type { ProjectConfig, ProviderConfig, ResolvedGuardConfig } from '../types/config.js';
 import type {
   ResolvedRunContext,
@@ -14,19 +15,20 @@ import { hasMetadata } from '../utils/validation.js';
 
 const normalizeRunProjectConfig = (project: RunProjectConfig): ProjectConfig => {
   const projectId = normalizeNonEmptyString(project.projectId);
-  if (projectId === undefined) {
+  if (projectId === undefined)
     throw new Error('projectConfig.projectId must be a non-empty string');
-  }
 
   const metadata = normalizeMetadata(project.metadata);
   const tags = normalizeStringArray(project.tags);
   const defaultProviderId = normalizeNonEmptyString(project.defaultProviderId);
+  const limits = normalizeScopedLimits(project.limits);
 
   return {
     projectId,
     ...(hasMetadata(metadata) ? { metadata } : {}),
     ...(tags.length > 0 ? { tags } : {}),
     ...(defaultProviderId !== undefined ? { defaultProviderId } : {}),
+    ...(limits !== undefined ? { limits } : {}),
   };
 };
 
@@ -37,12 +39,14 @@ const normalizeRunProviderConfig = (provider: RunProviderConfig): ProviderConfig
 
   const metadata = normalizeMetadata(provider.metadata);
   const pricingRef = normalizeNonEmptyString(provider.pricingRef);
+  const limits = normalizeScopedLimits(provider.limits);
 
   return {
     providerId,
     ...(provider.providerType !== undefined ? { providerType: provider.providerType } : {}),
     ...(pricingRef !== undefined ? { pricingRef } : {}),
     ...(hasMetadata(metadata) ? { metadata } : {}),
+    ...(limits !== undefined ? { limits } : {}),
   };
 };
 

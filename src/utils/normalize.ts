@@ -46,3 +46,9 @@ export const normalizePositiveInteger = (value: Nullable<number>): number | unde
 
   return value;
 };
+
+export const normalizePositiveNumber = (value: Nullable<number>): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+
+  return value;
+};

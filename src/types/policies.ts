@@ -69,3 +69,30 @@ export interface ResolvedDowngradeOnRequestBudgetExceededConfig {
 export interface ResolvedDowngradePolicyConfig {
   onRequestBudgetExceeded?: ResolvedDowngradeOnRequestBudgetExceededConfig | undefined;
 }
+
+export interface ScopedRequestBudgetLimits {
+  maxEstimatedInputCostUsd?: number;
+  maxEstimatedWorstCaseCostUsd?: number;
+}
+
+export interface ScopedAggregateBudgetLimits {
+  monthlyUsd?: number;
+}
+
+export interface ScopedRateLimitLimits {
+  requestsPerMinute?: number;
+}
+
+export interface ScopedLimits {
+  requestBudget?: ScopedRequestBudgetLimits;
+  aggregateBudget?: ScopedAggregateBudgetLimits;
+  rateLimit?: ScopedRateLimitLimits;
+}
+
+export type ScopedLimitSource = 'project' | 'provider';
+
+export interface EffectiveLimitSources {
+  requestBudget?: ScopedLimitSource;
+  aggregateBudget?: ScopedLimitSource;
+  rateLimit?: ScopedLimitSource;
+}

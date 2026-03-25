@@ -217,10 +217,9 @@ describe('createGuard', () => {
       mode: 'hard',
       project: { projectId: 'app-main' },
       provider: { providerId: 'openai', providerType: 'custom' },
-      request: {
-        tags: [],
-        metadata: {},
-      },
+      request: { tags: [], metadata: {} },
+      limits: {},
+      limitSources: {},
     });
 
     expect(result.preflight.providerId).toBe('openai');
@@ -318,11 +317,7 @@ describe('createGuard', () => {
       async (context) => context,
     );
 
-    expect(result.context.metadata).toEqual({
-      env: 'prod',
-      retries: 2,
-      cached: true,
-    });
+    expect(result.context.metadata).toEqual({ env: 'prod', retries: 2, cached: true });
   });
 
   it('accepts valid provider.maxTokens', async () => {
@@ -405,18 +400,11 @@ describe('createGuard', () => {
 
     expect(result.effectiveConfig).toEqual({
       mode: 'hard',
-      project: {
-        projectId: 'app-main',
-        tags: ['prod'],
-      },
-      provider: {
-        providerId: 'openai',
-        providerType: 'openai',
-      },
-      request: {
-        tags: ['prod'],
-        metadata: {},
-      },
+      project: { projectId: 'app-main', tags: ['prod'] },
+      provider: { providerId: 'openai', providerType: 'openai' },
+      request: { tags: ['prod'], metadata: {} },
+      limits: {},
+      limitSources: {},
     });
   });
 
@@ -1646,5 +1634,378 @@ describe('createGuard', () => {
     expect(result.actualUsage?.actualInputCostUsd).toBeCloseTo(0.00015, 12);
     expect(result.actualUsage?.actualOutputCostUsd).toBeCloseTo(0.00006, 12);
     expect(result.actualUsage?.actualTotalCostUsd).toBeCloseTo(0.00021, 12);
+  });
+
+  it('uses provider request budget before project request budget', async () => {
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { requestBudget: { maxEstimatedWorstCaseCostUsd: 1 } },
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+          request: {
+            messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+          },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'RequestBudgetExceededError',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      limitType: 'worst-case',
+      configuredLimitUsd: 0.000001,
+    });
+  });
+
+  it('falls back to project request budget when provider request budget is missing', async () => {
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+          providers: [{ providerId: 'openai', providerType: 'openai' }],
+        },
+      ],
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+          request: {
+            messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+          },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toMatchObject({
+      name: 'RequestBudgetExceededError',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      limitType: 'worst-case',
+      configuredLimitUsd: 0.000001,
+    });
+  });
+
+  it('uses provider aggregate monthly limit before project aggregate monthly limit', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({
+        projectId: 'app-main',
+        providerId: 'openai',
+        actualUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          actualInputCostUsd: 0,
+          actualOutputCostUsd: 0,
+          actualTotalCostUsd: 0.005,
+          deltaFromEstimatedInputCostUsd: 0,
+          deltaFromEstimatedWorstCaseCostUsd: 0,
+        },
+      }),
+    );
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      storage,
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { aggregateBudget: { monthlyUsd: 1 } },
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: { aggregateBudget: { monthlyUsd: 0.01 } },
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(
+      guard.run(
+        { provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 } },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('falls back to project aggregate monthly limit when provider aggregate limit is missing', async () => {
+    const storage = createMemoryStorage();
+
+    await storage.recordUsage(
+      createStoredUsageRecord({
+        projectId: 'app-main',
+        providerId: 'openai',
+        actualUsage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          actualInputCostUsd: 0,
+          actualOutputCostUsd: 0,
+          actualTotalCostUsd: 0.005,
+          deltaFromEstimatedInputCostUsd: 0,
+          deltaFromEstimatedWorstCaseCostUsd: 0,
+        },
+      }),
+    );
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      storage,
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { aggregateBudget: { monthlyUsd: 0.01 } },
+          providers: [{ providerId: 'openai', providerType: 'openai' }],
+        },
+      ],
+    });
+
+    await expect(
+      guard.run(
+        {
+          provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 10000 },
+        },
+        async () => ({ ok: true }),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('uses provider rate limit before project rate limit', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { rateLimit: { requestsPerMinute: 5 } },
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: { rateLimit: { requestsPerMinute: 1 } },
+            },
+          ],
+        },
+      ],
+    });
+
+    const first = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    const second = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    expect(first.decision.allowed).toBe(true);
+    expect(second.decision.blocked).toBe(true);
+    expect(second.violation?.type).toBe('rate-limit');
+  });
+
+  it('falls back to project rate limit when provider rate limit is missing', async () => {
+    const storage = createMemoryStorage();
+
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      storage,
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { rateLimit: { requestsPerMinute: 1 } },
+          providers: [{ providerId: 'openai', providerType: 'openai' }],
+        },
+      ],
+    });
+
+    const first = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    const second = await guard.run(
+      { provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    expect(first.decision.allowed).toBe(true);
+    expect(second.decision.blocked).toBe(true);
+    expect(second.violation?.type).toBe('rate-limit');
+  });
+
+  it('resolves limits independently across sections', async () => {
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { aggregateBudget: { monthlyUsd: 100 } },
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: {
+                requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+                rateLimit: { requestsPerMinute: 10 },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini' },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    expect(result.effectiveConfig.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+      aggregateBudget: { monthlyUsd: 100 },
+      rateLimit: { requestsPerMinute: 10 },
+    });
+
+    expect(result.effectiveConfig.limitSources).toEqual({
+      requestBudget: 'provider',
+      aggregateBudget: 'project',
+      rateLimit: 'provider',
+    });
+  });
+
+  it('keeps global policies working when scoped limits are not configured', async () => {
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      mode: 'soft',
+      policies: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 } },
+      projects: [
+        {
+          projectId: 'app-main',
+          providers: [{ providerId: 'openai', providerType: 'openai' }],
+        },
+      ],
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini', maxTokens: 1000 },
+        request: {
+          messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+        },
+      },
+      async () => ({ ok: true }),
+    );
+
+    expect(result.decision.blocked).toBe(true);
+    expect(result.decision.reasonCode).toBe('REQUEST_BUDGET_EXCEEDED');
+  });
+
+  it('downgrades request using provider-scoped request budget', async () => {
+    const guard = createGuard({
+      defaultProjectId: 'app-main',
+      pricing: [
+        {
+          providerId: 'openai',
+          model: 'gpt-4o',
+          inputCostPerMillionTokens: 2.5,
+          outputCostPerMillionTokens: 10,
+        },
+        {
+          providerId: 'openai',
+          model: 'gpt-4o-mini',
+          inputCostPerMillionTokens: 0.15,
+          outputCostPerMillionTokens: 0.6,
+        },
+      ],
+      policies: { downgrade: { onRequestBudgetExceeded: { fallbackModel: 'gpt-4o-mini' } } },
+      projects: [
+        {
+          projectId: 'app-main',
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: { requestBudget: { maxEstimatedWorstCaseCostUsd: 0.001 } },
+            },
+          ],
+        },
+      ],
+    });
+
+    const execute = vi.fn(async (context: ResolvedRunContext) => {
+      return { ok: true, model: context.provider.model };
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o', maxTokens: 1000 },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      execute,
+    );
+
+    expect(result.decision.action).toBe('downgrade');
+    expect(result.context.provider.model).toBe('gpt-4o-mini');
+  });
+
+  it('records scoped policy names in checkedPolicies', async () => {
+    const guard = createGuardWithPricing({
+      defaultProjectId: 'app-main',
+      projects: [
+        {
+          projectId: 'app-main',
+          limits: { aggregateBudget: { monthlyUsd: 100 } },
+          providers: [
+            {
+              providerId: 'openai',
+              providerType: 'openai',
+              limits: { rateLimit: { requestsPerMinute: 10 } },
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await guard.run(
+      {
+        provider: { id: 'openai', model: 'gpt-4o-mini' },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    expect(result.decision.checkedPolicies).toContain('project.limits.aggregateBudget.monthlyUsd');
+    expect(result.decision.checkedPolicies).toContain(
+      'provider.limits.rateLimit.requestsPerMinute',
+    );
   });
 });

@@ -113,6 +113,9 @@ describe('runtime registry and lazy registration', () => {
       providerType: 'openai',
       metadata: { sdk: 'openai' },
     });
+
+    expect(result.effectiveConfig.limits).toEqual({});
+    expect(result.effectiveConfig.limitSources).toEqual({});
   });
 
   it('does not overwrite existing project and provider during lazy registration', async () => {
@@ -224,5 +227,162 @@ describe('runtime registry and lazy registration', () => {
       providerId: 'openai',
       providerType: 'custom',
     });
+
+    expect(result.effectiveConfig.limits).toEqual({});
+    expect(result.effectiveConfig.limitSources).toEqual({});
+  });
+
+  it('registers project limits through guard.addProject()', () => {
+    const guard = createGuardWithPricing();
+
+    guard.addProject({
+      projectId: 'app-main',
+      limits: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.05 },
+        aggregateBudget: { monthlyUsd: 100 },
+        rateLimit: { requestsPerMinute: 30 },
+      },
+    });
+
+    const project = guard.config.registry.getProject('app-main');
+
+    expect(project).toBeDefined();
+    expect(project?.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.05 },
+      aggregateBudget: { monthlyUsd: 100 },
+      rateLimit: { requestsPerMinute: 30 },
+    });
+  });
+
+  it('registers project limits through guard.addProject()', () => {
+    const guard = createGuardWithPricing();
+
+    guard.addProject({
+      projectId: 'app-main',
+      limits: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.05 },
+        aggregateBudget: { monthlyUsd: 100 },
+        rateLimit: { requestsPerMinute: 30 },
+      },
+    });
+
+    const project = guard.config.registry.getProject('app-main');
+
+    expect(project).toBeDefined();
+    expect(project?.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.05 },
+      aggregateBudget: { monthlyUsd: 100 },
+      rateLimit: { requestsPerMinute: 30 },
+    });
+  });
+
+  it('registers provider limits through guard.addProvider()', () => {
+    const guard = createGuardWithPricing();
+
+    guard.addProject({ projectId: 'app-main' });
+
+    guard.addProvider('app-main', {
+      providerId: 'openai',
+      providerType: 'openai',
+      limits: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+        rateLimit: { requestsPerMinute: 10 },
+      },
+    });
+
+    const provider = guard.config.registry.getProvider('app-main', 'openai');
+
+    expect(provider).toBeDefined();
+    expect(provider?.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+      rateLimit: { requestsPerMinute: 10 },
+    });
+  });
+
+  it('auto-registers project and provider limits from run()', async () => {
+    const guard = createGuard({ pricing });
+
+    const result = await guard.run(
+      {
+        project: { id: 'app-main' },
+        provider: { id: 'openai', model: 'gpt-4o-mini' },
+        projectConfig: { projectId: 'app-main', limits: { aggregateBudget: { monthlyUsd: 100 } } },
+        providerConfig: {
+          providerId: 'openai',
+          providerType: 'openai',
+          limits: {
+            requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+            rateLimit: { requestsPerMinute: 10 },
+          },
+        },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    expect(result.decision.allowed).toBe(true);
+
+    expect(guard.config.registry.getProject('app-main')?.limits).toEqual({
+      aggregateBudget: { monthlyUsd: 100 },
+    });
+
+    expect(guard.config.registry.getProvider('app-main', 'openai')?.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
+      rateLimit: { requestsPerMinute: 10 },
+    });
+  });
+
+  it('does not overwrite existing project and provider limits during lazy registration', async () => {
+    const guard = createGuardWithPricing();
+
+    guard.addProject({ projectId: 'app-main', limits: { aggregateBudget: { monthlyUsd: 200 } } });
+
+    guard.addProvider('app-main', {
+      providerId: 'openai',
+      providerType: 'openai',
+      limits: {
+        requestBudget: { maxEstimatedWorstCaseCostUsd: 0.02 },
+        rateLimit: { requestsPerMinute: 20 },
+      },
+    });
+
+    await guard.run(
+      {
+        project: { id: 'app-main' },
+        provider: { id: 'openai', model: 'gpt-4o-mini' },
+        projectConfig: { projectId: 'app-main', limits: { aggregateBudget: { monthlyUsd: 999 } } },
+        providerConfig: {
+          providerId: 'openai',
+          providerType: 'custom',
+          limits: {
+            requestBudget: { maxEstimatedWorstCaseCostUsd: 0.000001 },
+            rateLimit: { requestsPerMinute: 1 },
+          },
+        },
+        request: { messages: [{ role: 'user', content: 'Hello world' }] },
+      },
+      async () => ({ ok: true }),
+    );
+
+    expect(guard.config.registry.getProject('app-main')?.limits).toEqual({
+      aggregateBudget: { monthlyUsd: 200 },
+    });
+
+    expect(guard.config.registry.getProvider('app-main', 'openai')?.limits).toEqual({
+      requestBudget: { maxEstimatedWorstCaseCostUsd: 0.02 },
+      rateLimit: { requestsPerMinute: 20 },
+    });
+  });
+
+  it('returns empty limits and sources when no scoped limits are configured', async () => {
+    const guard = createGuard({ pricing });
+
+    const result = await guard.run(
+      { project: { id: 'dynamic-project' }, provider: { id: 'openai', model: 'gpt-4o-mini' } },
+      async () => ({ ok: true }),
+    );
+
+    expect(result.effectiveConfig.limits).toEqual({});
+    expect(result.effectiveConfig.limitSources).toEqual({});
   });
 });

@@ -1,5 +1,9 @@
 import { buildPreflightEstimate } from '../preflight/buildPreflightEstimate.js';
 import type { ResolvedGuardConfig } from '../types/config.js';
+import type {
+  ResolvedRequestBudgetPolicyConfig,
+  ScopedRequestBudgetLimits,
+} from '../types/policies.js';
 import type { PreflightEstimate } from '../types/preflight.js';
 import type {
   AppliedDowngrade,
@@ -20,6 +24,8 @@ interface EvaluateDowngradeParams {
   context: ResolvedRunContext;
   breakdown: RunBreakdownInput | undefined;
   violation: RequestBudgetViolation;
+  requestBudgetPolicy: ResolvedRequestBudgetPolicyConfig | ScopedRequestBudgetLimits | undefined;
+  requestBudgetPolicyName: string;
 }
 
 const resolveEffectiveMaxTokens = (
@@ -61,7 +67,8 @@ const buildCandidateContext = (
 export const evaluateDowngrade = (
   params: EvaluateDowngradeParams,
 ): DowngradeEvaluationResult | undefined => {
-  const { config, context, breakdown, violation } = params;
+  const { config, context, breakdown, violation, requestBudgetPolicy, requestBudgetPolicyName } =
+    params;
 
   if (violation.type !== 'request-budget') return undefined;
 
@@ -78,8 +85,9 @@ export const evaluateDowngrade = (
 
   const candidatePreflight = buildPreflightEstimate(config, candidateContext, breakdown);
   const requestBudgetEvaluation = evaluateRequestBudget(
-    config.policies.requestBudget,
+    requestBudgetPolicy,
     candidatePreflight,
+    requestBudgetPolicyName,
   );
 
   if (requestBudgetEvaluation.decision.blocked) return undefined;

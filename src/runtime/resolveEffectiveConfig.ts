@@ -1,6 +1,7 @@
 import type { ProjectConfig, ProviderConfig, ResolvedGuardConfig } from '../types/config.js';
 import type { EffectiveRunConfig, ResolvedRunContext, RunContext } from '../types/run.js';
 import { normalizeMetadata, normalizeStringArray } from '../utils/normalize.js';
+import { resolveEffectiveLimits } from './resolveEffectiveLimits.js';
 
 const resolveProjectConfig = (
   config: ResolvedGuardConfig,
@@ -14,6 +15,7 @@ const resolveProjectConfig = (
       metadata: registeredProject.metadata,
       tags: registeredProject.tags,
       defaultProviderId: registeredProject.defaultProviderId,
+      limits: registeredProject.limits,
     } as ProjectConfig;
 
   return { projectId: context.project.id };
@@ -48,6 +50,8 @@ export const resolveEffectiveConfig = (
     ...overrideMetadata,
   };
 
+  const effectiveLimits = resolveEffectiveLimits(config, resolvedContext);
+
   return {
     mode: config.mode,
     project,
@@ -59,5 +63,7 @@ export const resolveEffectiveConfig = (
       tags: overrideTags.length > 0 ? overrideTags : (project.tags ?? []),
       metadata: requestMetadata,
     },
+    limits: effectiveLimits.limits,
+    limitSources: effectiveLimits.sources,
   };
 };

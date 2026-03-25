@@ -1,3 +1,4 @@
+import { resolveEffectiveLimits } from '../runtime/resolveEffectiveLimits.js';
 import type { ResolvedGuardConfig } from '../types/config.js';
 import type { PreflightEstimate } from '../types/preflight.js';
 import type {
@@ -11,6 +12,8 @@ import { evaluateAggregateBudget } from './evaluateAggregateBudget.js';
 import { evaluateDowngrade } from './evaluateDowngrade.js';
 import { evaluateRateLimit } from './evaluateRateLimit.js';
 import { evaluateRequestBudget } from './evaluateRequestBudget.js';
+import { evaluateScopedAggregateBudget } from './evaluateScopedAggregateBudget.js';
+import { evaluateScopedRateLimit } from './evaluateScopedRateLimit.js';
 
 export interface PolicyEvaluationResult {
   decision: GuardDecision;
@@ -47,9 +50,66 @@ export const evaluatePolicies = async (
   let appliedDowngrade: AppliedDowngrade | undefined;
   let checkedPolicies: string[] = [];
 
+  let effectiveLimitResolution = resolveEffectiveLimits(config, effectiveContext);
+
+  const scopedRequestBudget = effectiveLimitResolution.limits.requestBudget;
+  const scopedRequestBudgetSource = effectiveLimitResolution.sources.requestBudget;
+
+  if (scopedRequestBudget !== undefined && scopedRequestBudgetSource !== undefined) {
+    const scopedRequestBudgetPolicyName = `${scopedRequestBudgetSource}.limits.requestBudget`;
+
+    const scopedRequestBudgetEvaluation = evaluateRequestBudget(
+      scopedRequestBudget,
+      effectivePreflight,
+      scopedRequestBudgetPolicyName,
+    );
+
+    checkedPolicies = [
+      ...checkedPolicies,
+      ...scopedRequestBudgetEvaluation.decision.checkedPolicies,
+    ];
+
+    if (scopedRequestBudgetEvaluation.decision.blocked) {
+      const scopedViolation = scopedRequestBudgetEvaluation.violation;
+
+      if (scopedViolation?.type === 'request-budget') {
+        const downgradeEvaluation = evaluateDowngrade({
+          config,
+          context: effectiveContext,
+          breakdown,
+          violation: scopedViolation,
+          requestBudgetPolicy: scopedRequestBudget,
+          requestBudgetPolicyName: scopedRequestBudgetPolicyName,
+        });
+
+        if (downgradeEvaluation !== undefined) {
+          effectiveContext = downgradeEvaluation.context;
+          effectivePreflight = downgradeEvaluation.preflight;
+          appliedDowngrade = downgradeEvaluation.appliedDowngrade;
+          checkedPolicies = [...checkedPolicies, 'downgrade.onRequestBudgetExceeded'];
+        } else {
+          return {
+            decision: withCheckedPolicies(scopedRequestBudgetEvaluation.decision, checkedPolicies),
+            violation: scopedViolation,
+            context: effectiveContext,
+            preflight: effectivePreflight,
+          };
+        }
+      } else {
+        return {
+          decision: withCheckedPolicies(scopedRequestBudgetEvaluation.decision, checkedPolicies),
+          violation: scopedRequestBudgetEvaluation.violation,
+          context: effectiveContext,
+          preflight: effectivePreflight,
+        };
+      }
+    }
+  }
+
   const requestBudgetEvaluation = evaluateRequestBudget(
     config.policies.requestBudget,
     effectivePreflight,
+    'requestBudget',
   );
 
   checkedPolicies = [...checkedPolicies, ...requestBudgetEvaluation.decision.checkedPolicies];
@@ -63,6 +123,8 @@ export const evaluatePolicies = async (
         context: effectiveContext,
         breakdown,
         violation: requestBudgetViolation,
+        requestBudgetPolicy: config.policies.requestBudget,
+        requestBudgetPolicyName: 'requestBudget',
       });
 
       if (downgradeEvaluation !== undefined) {
@@ -88,6 +150,40 @@ export const evaluatePolicies = async (
     }
   }
 
+  effectiveLimitResolution = resolveEffectiveLimits(config, effectiveContext);
+
+  const scopedAggregateBudget = effectiveLimitResolution.limits.aggregateBudget;
+  const scopedAggregateBudgetSource = effectiveLimitResolution.sources.aggregateBudget;
+
+  if (
+    scopedAggregateBudget?.monthlyUsd !== undefined &&
+    scopedAggregateBudgetSource !== undefined
+  ) {
+    const scopedAggregateBudgetEvaluation = await evaluateScopedAggregateBudget({
+      config,
+      context: effectiveContext,
+      preflight: effectivePreflight,
+      scope: scopedAggregateBudgetSource,
+      monthlyUsd: scopedAggregateBudget.monthlyUsd,
+      policyName: `${scopedAggregateBudgetSource}.limits.aggregateBudget.monthlyUsd`,
+    });
+
+    checkedPolicies = [
+      ...checkedPolicies,
+      ...scopedAggregateBudgetEvaluation.decision.checkedPolicies,
+    ];
+
+    if (scopedAggregateBudgetEvaluation.decision.blocked) {
+      return {
+        decision: withCheckedPolicies(scopedAggregateBudgetEvaluation.decision, checkedPolicies),
+        violation: scopedAggregateBudgetEvaluation.violation,
+        context: effectiveContext,
+        preflight: effectivePreflight,
+        ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+      };
+    }
+  }
+
   const aggregateBudgetEvaluation = await evaluateAggregateBudget(
     config,
     effectiveContext,
@@ -104,6 +200,31 @@ export const evaluatePolicies = async (
       preflight: effectivePreflight,
       ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
     };
+  }
+
+  const scopedRateLimit = effectiveLimitResolution.limits.rateLimit;
+  const scopedRateLimitSource = effectiveLimitResolution.sources.rateLimit;
+
+  if (scopedRateLimit?.requestsPerMinute !== undefined && scopedRateLimitSource !== undefined) {
+    const scopedRateLimitEvaluation = await evaluateScopedRateLimit({
+      config,
+      context: effectiveContext,
+      scope: scopedRateLimitSource,
+      requestsPerMinute: scopedRateLimit.requestsPerMinute,
+      policyName: `${scopedRateLimitSource}.limits.rateLimit.requestsPerMinute`,
+    });
+
+    checkedPolicies = [...checkedPolicies, ...scopedRateLimitEvaluation.decision.checkedPolicies];
+
+    if (scopedRateLimitEvaluation.decision.blocked) {
+      return {
+        decision: withCheckedPolicies(scopedRateLimitEvaluation.decision, checkedPolicies),
+        violation: scopedRateLimitEvaluation.violation,
+        context: effectiveContext,
+        preflight: effectivePreflight,
+        ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+      };
+    }
   }
 
   const rateLimitEvaluation = await evaluateRateLimit(config, effectiveContext);

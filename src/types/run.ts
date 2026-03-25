@@ -1,6 +1,7 @@
 import type { Metadata } from '../utils/types.js';
 import type { CostSpikeExplanation } from './analytics.js';
 import type { GuardMode, ProjectConfig, ProviderConfig, ProviderType } from './config.js';
+import type { EffectiveLimitSources, ScopedLimits } from './policies.js';
 import type { PreflightEstimate } from './preflight.js';
 import type { RequestLike } from './requests.js';
 import type { ActualUsage, ExecuteUsage } from './usage.js';
@@ -87,6 +88,8 @@ export interface EffectiveRunConfig {
     tags: string[];
     metadata: Metadata;
   };
+  limits: ScopedLimits;
+  limitSources: EffectiveLimitSources;
 }
 
 export interface RequestBudgetViolation {
@@ -166,6 +169,7 @@ export interface RunProjectConfig {
   metadata?: Metadata;
   tags?: string[];
   defaultProviderId?: string;
+  limits?: ScopedLimits;
 }
 
 export interface RunProviderConfig {
@@ -173,4 +177,5 @@ export interface RunProviderConfig {
   providerType?: ProviderType;
   metadata?: Metadata;
   pricingRef?: string;
+  limits?: ScopedLimits;
 }

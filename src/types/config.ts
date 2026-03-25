@@ -1,6 +1,6 @@
 import type { Metadata } from '../utils/types.js';
 import type { GuardAnalyticsConfig, ResolvedGuardAnalyticsConfig } from './analytics.js';
-import type { GuardPolicies, ResolvedGuardPolicies } from './policies.js';
+import type { GuardPolicies, ResolvedGuardPolicies, ScopedLimits } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
 import type { ExecuteReturnValue, GuardResult, ResolvedRunContext, RunContext } from './run.js';
@@ -31,6 +31,7 @@ export interface ProjectConfig {
   metadata?: Metadata;
   tags?: string[];
   defaultProviderId?: string;
+  limits?: ScopedLimits;
   providers?: ProviderConfig[];
 }
 
@@ -41,6 +42,7 @@ export interface ProviderConfig {
   providerType?: ProviderType;
   metadata?: Metadata;
   pricingRef?: string;
+  limits?: ScopedLimits;
 }
 
 export interface GuardConfig {

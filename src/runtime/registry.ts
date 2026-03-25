@@ -1,3 +1,4 @@
+import { normalizeScopedLimits } from '../policies/normalizeScopedLimits.js';
 import type { ProjectConfig, ProviderConfig } from '../types/config.js';
 import type { GuardRegistry, ProjectRegistryEntry } from '../types/registry.js';
 import {
@@ -14,11 +15,14 @@ const normalizeProviderConfig = (provider: ProviderConfig): ProviderConfig => {
   const pricingRef = normalizeNonEmptyString(provider.pricingRef);
   const metadata = normalizeMetadata(provider.metadata);
 
+  const limits = normalizeScopedLimits(provider.limits);
+
   return {
     providerId,
     ...(provider.providerType !== undefined ? { providerType: provider.providerType } : {}),
     ...(pricingRef !== undefined ? { pricingRef } : {}),
     ...(hasMetadata(metadata) ? { metadata } : {}),
+    ...(limits !== undefined ? { limits } : {}),
   };
 };
 
@@ -32,12 +36,14 @@ const normalizeProjectConfig = (project: ProjectConfig): ProjectConfig => {
   const providers = Array.isArray(project.providers)
     ? project.providers.map((provider) => normalizeProviderConfig(provider))
     : [];
+  const limits = normalizeScopedLimits(project.limits);
 
   return {
     projectId,
     ...(hasMetadata(metadata) ? { metadata } : {}),
     ...(tags.length > 0 ? { tags } : {}),
     ...(defaultProviderId !== undefined ? { defaultProviderId } : {}),
+    ...(limits !== undefined ? { limits } : {}),
     ...(providers.length > 0 ? { providers } : {}),
   };
 };
@@ -66,6 +72,7 @@ const createProjectRegistryEntry = (project: ProjectConfig): ProjectRegistryEntr
     ...(normalizedProject.defaultProviderId !== undefined
       ? { defaultProviderId: normalizedProject.defaultProviderId }
       : {}),
+    ...(normalizedProject.limits !== undefined ? { limits: normalizedProject.limits } : {}),
     providers: new Map(providers.map((provider) => [provider.providerId, provider])),
   };
 };
