@@ -9,9 +9,9 @@ import {
   RateLimitedError,
   RequestBudgetExceededError,
   type UsageRecord,
-} from '../src/index.js';
-import type { ResolvedRunContext } from '../src/types/run.js';
-import { assertRequestBudgetViolation } from './helpers/assertions.js';
+} from '../../src/index.js';
+import type { ResolvedRunContext } from '../../src/types/run.js';
+import { assertRequestBudgetViolation } from '../helpers/assertions.js';
 
 const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) => {
   return createGuard({

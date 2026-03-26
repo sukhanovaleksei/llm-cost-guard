@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { estimateInputTokens } from '../src/index.js';
-import { extractTextForEstimation } from '../src/tokenization/requestText.js';
+import { estimateInputTokens } from '../../src/index.js';
+import { extractTextForEstimation } from '../../src/tokenization/requestText.js';
 
 describe('tokenization', () => {
   it('extracts text from string request', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { UsageRecord } from '../src/index.js';
-import { createMemoryStorage } from '../src/index.js';
+import type { UsageRecord } from '../../src/index.js';
+import { createMemoryStorage } from '../../src/index.js';
 
 const createUsageRecord = (overrides: Partial<UsageRecord> = {}): UsageRecord => {
   return {

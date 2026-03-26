@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { UsageRecord } from '../src/index.js';
-import { createMemoryStorage, createRedisStorage } from '../src/index.js';
-import { createFakeRedisStorageClient } from './helpers/createFakeRedisStorageClient.js';
+import type { UsageRecord } from '../../src/index.js';
+import { createMemoryStorage, createRedisStorage } from '../../src/index.js';
+import { createFakeRedisStorageClient } from '../helpers/createFakeRedisStorageClient.js';
 
 const createUsageRecord = (overrides: Partial<UsageRecord> = {}): UsageRecord => {
   return {

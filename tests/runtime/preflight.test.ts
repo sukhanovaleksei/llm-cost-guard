@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createGuard, MissingPricingEntryError } from '../src/index.js';
+import { createGuard, MissingPricingEntryError } from '../../src/index.js';
 
 describe('preflight estimation', () => {
   it('returns preflight estimate from guard.run()', async () => {

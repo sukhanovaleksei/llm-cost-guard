@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createGuard } from '../src/index.js';
+import { createGuard } from '../../src/index.js';
 
 const pricing = [
   {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createGuard, createMemoryStorage } from '../src/index.js';
+import { createGuard, createMemoryStorage } from '../../src/index.js';
 
 describe('cost spike explanation', () => {
   it('returns undefined when cost spike analytics is disabled', async () => {
