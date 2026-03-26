@@ -1,4 +1,7 @@
-import type { RedisSortedSetMember, RedisStorageClient } from '../../src/storage/redisTypes.js';
+import type {
+  RedisSortedSetMember,
+  RedisStorageClient,
+} from '../../src/storage/redis/redisTypes.js';
 
 interface SortedSetState {
   members: Map<string, number>;

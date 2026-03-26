@@ -1,5 +1,5 @@
 import { resolvePricingTable } from '../pricing/resolvePricingTable.js';
-import { createMemoryStorage } from '../storage/createMemoryStorage.js';
+import { createMemoryStorage } from '../storage/memory/memoryStorage.js';
 import type {
   GuardAnalyticsConfig,
   ResolvedCostSpikeConfig,

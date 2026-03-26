@@ -1,4 +1,4 @@
-import type { SpendSummary, UsageRecord } from '../types/storage.js';
+import type { SpendSummary, UsageRecord } from '../../types/storage.js';
 
 const toFiniteNumber = (value: string | undefined): number => {
   if (value === undefined) return 0;
