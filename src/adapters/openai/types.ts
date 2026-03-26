@@ -1,12 +1,5 @@
 import type { Guard, GuardResult, RunContext } from '../../types/index.js';
-
-export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonObject | JsonArray;
-export type JsonArray = JsonValue[];
-
-export interface JsonObject {
-  [key: string]: JsonValue | undefined;
-}
+import type { JsonObject } from '../../types/json.js';
 
 export type OpenAIInputRole = 'system' | 'developer' | 'user' | 'assistant';
 

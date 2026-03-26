@@ -19,6 +19,7 @@ export type {
   ProviderConfig,
   ProviderType,
 } from './config.js';
+export * from './json.js';
 export * from './policies.js';
 export type { PreflightBreakdown, PreflightBreakdownPart, PreflightEstimate } from './preflight.js';
 export type { PricingEntry, ResolvedPricingEntry } from './pricing.js';

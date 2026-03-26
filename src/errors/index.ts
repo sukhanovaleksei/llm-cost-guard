@@ -1,5 +1,6 @@
 export * from './AggregateBudgetExceededError.js';
 export * from './GuardError.js';
+export * from './InvalidAnthropicAdapterRequestError.js';
 export * from './InvalidBreakdownPartError.js';
 export * from './InvalidMaxTokensError.js';
 export * from './InvalidOpenAIAdapterRequestError.js';

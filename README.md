@@ -101,6 +101,47 @@ console.log(result.actualUsage);
 console.log(result.decision);
 ```
 
+## Anthropic
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import { createGuard, wrapAnthropic } from 'llm-cost-guard';
+
+const guard = createGuard({
+  defaultProjectId: 'app-main',
+  pricing: [
+    {
+      providerId: 'anthropic',
+      model: 'claude-3-5-haiku-latest',
+      inputCostPerMillionTokens: 0.8,
+      outputCostPerMillionTokens: 4,
+    },
+  ],
+  policies: {
+    requestBudget: {
+      maxEstimatedWorstCaseCostUsd: 0.01,
+    },
+  },
+});
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const anthropic = wrapAnthropic(client);
+
+const result = await anthropic.messages.create(
+  guard,
+  {},
+  {
+    model: 'claude-3-5-haiku-latest',
+    max_tokens: 500,
+    messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
+  },
+);
+
+console.log(result.actualUsage);
+console.log(result.decision);
+```
+
+
 ## Automatic downgrade for over-budget requests
 
 ```ts

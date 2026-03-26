@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   OpenAIResponseLike,
   OpenAIResponsesCreateRequest,
-} from '../src/adapters/openai/types.js';
+} from '../../src/adapters/openai/types.js';
 import {
   createGuard,
   InvalidOpenAIAdapterRequestError,
   RequestBudgetExceededError,
   wrapOpenAI,
-} from '../src/index.js';
+} from '../../src/index.js';
 
 interface TestOpenAIRequest extends OpenAIResponsesCreateRequest {
   temperature?: number;
