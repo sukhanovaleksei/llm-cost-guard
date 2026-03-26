@@ -35,8 +35,8 @@ export interface RunContext {
   };
   provider?: {
     id?: string;
-    model?: string;
-    maxTokens?: number;
+    model?: string | undefined;
+    maxTokens?: number | undefined;
   };
   user?: {
     id?: string;

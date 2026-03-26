@@ -1,3 +1,4 @@
+export * from './adapters/index.js';
 export * from './analytics/index.js';
 export * from './errors/index.js';
 export * from './execution/index.js';

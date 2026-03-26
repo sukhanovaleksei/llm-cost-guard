@@ -2,6 +2,7 @@ export * from './AggregateBudgetExceededError.js';
 export * from './GuardError.js';
 export * from './InvalidBreakdownPartError.js';
 export * from './InvalidMaxTokensError.js';
+export * from './InvalidOpenAIAdapterRequestError.js';
 export * from './InvalidUsagePayloadError.js';
 export * from './MissingModelError.js';
 export * from './MissingPricingEntryError.js';

@@ -61,6 +61,46 @@ const result = await guard.run(
 console.log(result);
 ```
 
+## OpenAI Responses API
+
+```ts
+import OpenAI from 'openai';
+import { createGuard, wrapOpenAI } from 'llm-cost-guard';
+
+const guard = createGuard({
+  defaultProjectId: 'app-main',
+  pricing: [
+    {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      inputCostPerMillionTokens: 0.15,
+      outputCostPerMillionTokens: 0.6,
+    },
+  ],
+  policies: {
+    requestBudget: {
+      maxEstimatedWorstCaseCostUsd: 0.01,
+    },
+  },
+});
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = wrapOpenAI(client);
+
+const result = await openai.responses.create(
+  guard,
+  {},
+  {
+    model: 'gpt-4o-mini',
+    input: 'Explain distributed systems in depth',
+    max_output_tokens: 500,
+  },
+);
+
+console.log(result.actualUsage);
+console.log(result.decision);
+```
+
 ## Automatic downgrade for over-budget requests
 
 ```ts
