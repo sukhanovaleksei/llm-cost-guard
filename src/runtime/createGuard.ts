@@ -19,6 +19,7 @@ import type {
   RunContext,
 } from '../types/run.js';
 import type { ActualUsage } from '../types/usage.js';
+import { emitHook } from './emitHook.js';
 import { ensureRuntimeRegistration } from './ensureRuntimeRegistration.js';
 import { resolveEffectiveConfig } from './resolveEffectiveConfig.js';
 import { resolveGuardConfig } from './resolveGuardConfig.js';
@@ -52,6 +53,12 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
     ): Promise<GuardResult<TExecuteResult>> {
       const initialResolvedContext = resolveRunContext(resolvedConfig, context);
 
+      await emitHook(resolvedConfig.hooks.onRunStart, {
+        timestamp: new Date().toISOString(),
+        rawContext: context,
+        context: initialResolvedContext,
+      });
+
       ensureRuntimeRegistration(resolvedConfig, initialResolvedContext, context);
 
       const initialPreflight = buildPreflightEstimate(
@@ -59,6 +66,12 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         initialResolvedContext,
         context.breakdown,
       );
+
+      await emitHook(resolvedConfig.hooks.onPreflightBuilt, {
+        timestamp: new Date().toISOString(),
+        context: initialResolvedContext,
+        preflight: initialPreflight,
+      });
 
       const policyEvaluation = await evaluatePolicies(
         resolvedConfig,
@@ -73,6 +86,29 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
 
+      await emitHook(resolvedConfig.hooks.onPolicyEvaluated, {
+        timestamp: new Date().toISOString(),
+        context: resolvedContext,
+        preflight,
+        decision: policyEvaluation.decision,
+        effectiveConfig,
+        ...(policyEvaluation.violation !== undefined
+          ? { violation: policyEvaluation.violation }
+          : {}),
+        ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+      });
+
+      if (appliedDowngrade !== undefined) {
+        await emitHook(resolvedConfig.hooks.onRequestDowngraded, {
+          timestamp: new Date().toISOString(),
+          context: resolvedContext,
+          preflight,
+          decision: policyEvaluation.decision,
+          effectiveConfig,
+          appliedDowngrade,
+        });
+      }
+
       if (policyEvaluation.decision.blocked) {
         const blockedRecord = buildUsageRecord({
           context: resolvedContext,
@@ -84,7 +120,32 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
           executed: false,
         });
 
+        await emitHook(resolvedConfig.hooks.onRequestBlocked, {
+          timestamp: new Date().toISOString(),
+          context: resolvedContext,
+          preflight,
+          decision: policyEvaluation.decision,
+          effectiveConfig,
+          ...(policyEvaluation.violation !== undefined
+            ? { violation: policyEvaluation.violation }
+            : {}),
+          ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+        });
+
         await resolvedConfig.storage.recordUsage(blockedRecord);
+
+        await emitHook(resolvedConfig.hooks.onUsageRecorded, {
+          timestamp: new Date().toISOString(),
+          context: resolvedContext,
+          preflight,
+          decision: policyEvaluation.decision,
+          effectiveConfig,
+          usageRecord: blockedRecord,
+          ...(policyEvaluation.violation !== undefined
+            ? { violation: policyEvaluation.violation }
+            : {}),
+          ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+        });
 
         if (resolvedConfig.mode === 'hard') {
           if (policyEvaluation.violation?.type === 'request-budget')
@@ -141,7 +202,25 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         };
       }
 
-      const executeReturnValue = await execute(resolvedContext);
+      let executeReturnValue: ExecuteReturnValue<TExecuteResult>;
+
+      try {
+        executeReturnValue = await execute(resolvedContext);
+      } catch (error) {
+        const executeError = error instanceof Error ? error : new Error(String(error));
+
+        await emitHook(resolvedConfig.hooks.onExecuteError, {
+          timestamp: new Date().toISOString(),
+          context: resolvedContext,
+          preflight,
+          decision: policyEvaluation.decision,
+          effectiveConfig,
+          ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+          error: executeError,
+        });
+
+        throw error;
+      }
 
       let result: TExecuteResult;
       let actualUsage: ActualUsage | undefined;
@@ -182,6 +261,17 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         result = executeReturnValue;
       }
 
+      await emitHook(resolvedConfig.hooks.onExecuteSuccess, {
+        timestamp: new Date().toISOString(),
+        context: resolvedContext,
+        preflight,
+        decision: policyEvaluation.decision,
+        effectiveConfig,
+        ...(actualUsage !== undefined ? { actualUsage } : {}),
+        ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+        ...(costSpikeExplanation !== undefined ? { costSpikeExplanation } : {}),
+      });
+
       const usageRecord = buildUsageRecord({
         context: resolvedContext,
         effectiveConfig,
@@ -193,6 +283,33 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       });
 
       await resolvedConfig.storage.recordUsage(usageRecord);
+
+      await emitHook(resolvedConfig.hooks.onUsageRecorded, {
+        timestamp: new Date().toISOString(),
+        context: resolvedContext,
+        preflight,
+        decision: policyEvaluation.decision,
+        effectiveConfig,
+        usageRecord,
+        ...(actualUsage !== undefined ? { actualUsage } : {}),
+        ...(appliedDowngrade !== undefined ? { appliedDowngrade } : {}),
+      });
+
+      if (
+        actualUsage !== undefined &&
+        costSpikeExplanation !== undefined &&
+        costSpikeExplanation.detected
+      ) {
+        await emitHook(resolvedConfig.hooks.onCostSpikeDetected, {
+          timestamp: new Date().toISOString(),
+          context: resolvedContext,
+          preflight,
+          decision: policyEvaluation.decision,
+          effectiveConfig,
+          actualUsage,
+          costSpikeExplanation,
+        });
+      }
 
       return {
         result,

@@ -1,5 +1,6 @@
 import type { Metadata } from '../utils/types.js';
 import type { GuardAnalyticsConfig, ResolvedGuardAnalyticsConfig } from './analytics.js';
+import type { GuardHooks } from './hooks.js';
 import type { GuardPolicies, ResolvedGuardPolicies, ScopedLimits } from './policies.js';
 import type { PricingEntry, ResolvedPricingEntry } from './pricing.js';
 import type { GuardRegistry } from './registry.js';
@@ -54,6 +55,7 @@ export interface GuardConfig {
   policies?: GuardPolicies | undefined;
   analytics?: GuardAnalyticsConfig;
   storage?: StorageAdapter;
+  hooks?: GuardHooks;
 }
 
 export interface ResolvedGuardConfig {
@@ -65,6 +67,7 @@ export interface ResolvedGuardConfig {
   policies: ResolvedGuardPolicies;
   analytics: ResolvedGuardAnalyticsConfig;
   storage: StorageAdapter;
+  hooks: GuardHooks;
 }
 
 export interface Guard {

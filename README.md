@@ -141,7 +141,6 @@ console.log(result.actualUsage);
 console.log(result.decision);
 ```
 
-
 ## Automatic downgrade for over-budget requests
 
 ```ts
@@ -186,4 +185,31 @@ const result = await guard.run(
 );
 
 console.log(result);
+```
+
+## Hooks
+
+```ts
+const guard = createGuard({
+  defaultProjectId: 'app-main',
+  pricing: [
+    {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      inputCostPerMillionTokens: 0.15,
+      outputCostPerMillionTokens: 0.6,
+    },
+  ],
+  hooks: {
+    onRequestBlocked(event) {
+      console.log('blocked', event.violation);
+    },
+    onRequestDowngraded(event) {
+      console.log('downgraded to', event.appliedDowngrade.effectiveModel);
+    },
+    onUsageRecorded(event) {
+      console.log('usage recorded', event.usageRecord.id);
+    },
+  },
+});
 ```

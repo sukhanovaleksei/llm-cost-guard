@@ -6,6 +6,7 @@ import type {
   ResolvedGuardAnalyticsConfig,
 } from '../types/analytics.js';
 import type { GuardConfig, GuardDefaults, ResolvedGuardConfig } from '../types/config.js';
+import type { GuardHooks } from '../types/hooks.js';
 import type {
   GuardPolicies,
   ResolvedAggregateBudgetPolicyConfig,
@@ -28,6 +29,8 @@ const defaultGuardDefaults: GuardDefaults = {
   provider: { metadata: {} },
   request: { metadata: {} },
 };
+
+const defaultGuardHooks: GuardHooks = {};
 
 const resolveRequestBudgetPolicy = (
   policies: GuardPolicies | undefined,
@@ -141,6 +144,7 @@ export const resolveGuardConfig = (config: GuardConfig = {}): ResolvedGuardConfi
     policies: resolvePolicies(config.policies),
     analytics: resolveAnalytics(config.analytics),
     storage: config.storage ?? createMemoryStorage(),
+    hooks: config.hooks ?? defaultGuardHooks,
   };
 };
 

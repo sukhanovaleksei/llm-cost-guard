@@ -19,6 +19,19 @@ export type {
   ProviderConfig,
   ProviderType,
 } from './config.js';
+export type {
+  CostSpikeDetectedEvent,
+  ExecuteErrorEvent,
+  ExecuteSuccessEvent,
+  GuardHooks,
+  HookEventBase,
+  PolicyEvaluatedEvent,
+  PreflightBuiltEvent,
+  RequestBlockedEvent,
+  RequestDowngradedEvent,
+  RunStartEvent,
+  UsageRecordedEvent,
+} from './hooks.js';
 export * from './json.js';
 export * from './policies.js';
 export type { PreflightBreakdown, PreflightBreakdownPart, PreflightEstimate } from './preflight.js';
