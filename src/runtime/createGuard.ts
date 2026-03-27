@@ -19,6 +19,8 @@ import type {
   RunContext,
 } from '../types/run.js';
 import type { ActualUsage } from '../types/usage.js';
+import { createHookEventBase } from './createHookEventBase.js';
+import { createRunId } from './createRunId.js';
 import { emitHook } from './emitHook.js';
 import { ensureRuntimeRegistration } from './ensureRuntimeRegistration.js';
 import { resolveEffectiveConfig } from './resolveEffectiveConfig.js';
@@ -51,12 +53,12 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       context: RunContext,
       execute: (context: ResolvedRunContext) => Promise<ExecuteReturnValue<TExecuteResult>>,
     ): Promise<GuardResult<TExecuteResult>> {
+      const runId = createRunId();
       const initialResolvedContext = resolveRunContext(resolvedConfig, context);
 
       await emitHook(resolvedConfig.hooks.onRunStart, {
-        timestamp: new Date().toISOString(),
+        ...createHookEventBase(runId, initialResolvedContext),
         rawContext: context,
-        context: initialResolvedContext,
       });
 
       ensureRuntimeRegistration(resolvedConfig, initialResolvedContext, context);
@@ -68,8 +70,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       );
 
       await emitHook(resolvedConfig.hooks.onPreflightBuilt, {
-        timestamp: new Date().toISOString(),
-        context: initialResolvedContext,
+        ...createHookEventBase(runId, initialResolvedContext),
         preflight: initialPreflight,
       });
 
@@ -87,8 +88,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       const effectiveConfig = resolveEffectiveConfig(resolvedConfig, context, resolvedContext);
 
       await emitHook(resolvedConfig.hooks.onPolicyEvaluated, {
-        timestamp: new Date().toISOString(),
-        context: resolvedContext,
+        ...createHookEventBase(runId, resolvedContext),
         preflight,
         decision: policyEvaluation.decision,
         effectiveConfig,
@@ -100,8 +100,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
       if (appliedDowngrade !== undefined) {
         await emitHook(resolvedConfig.hooks.onRequestDowngraded, {
-          timestamp: new Date().toISOString(),
-          context: resolvedContext,
+          ...createHookEventBase(runId, resolvedContext),
           preflight,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -111,6 +110,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
 
       if (policyEvaluation.decision.blocked) {
         const blockedRecord = buildUsageRecord({
+          runId,
           context: resolvedContext,
           effectiveConfig,
           decision: policyEvaluation.decision,
@@ -121,8 +121,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         });
 
         await emitHook(resolvedConfig.hooks.onRequestBlocked, {
-          timestamp: new Date().toISOString(),
-          context: resolvedContext,
+          ...createHookEventBase(runId, resolvedContext),
           preflight,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -135,8 +134,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         await resolvedConfig.storage.recordUsage(blockedRecord);
 
         await emitHook(resolvedConfig.hooks.onUsageRecorded, {
-          timestamp: new Date().toISOString(),
-          context: resolvedContext,
+          ...createHookEventBase(runId, resolvedContext),
           preflight,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -193,6 +191,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         }
 
         return {
+          runId,
           context: resolvedContext,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -210,8 +209,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         const executeError = error instanceof Error ? error : new Error(String(error));
 
         await emitHook(resolvedConfig.hooks.onExecuteError, {
-          timestamp: new Date().toISOString(),
-          context: resolvedContext,
+          ...createHookEventBase(runId, resolvedContext),
           preflight,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -262,8 +260,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       }
 
       await emitHook(resolvedConfig.hooks.onExecuteSuccess, {
-        timestamp: new Date().toISOString(),
-        context: resolvedContext,
+        ...createHookEventBase(runId, resolvedContext),
         preflight,
         decision: policyEvaluation.decision,
         effectiveConfig,
@@ -273,6 +270,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       });
 
       const usageRecord = buildUsageRecord({
+        runId,
         context: resolvedContext,
         effectiveConfig,
         decision: policyEvaluation.decision,
@@ -285,8 +283,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       await resolvedConfig.storage.recordUsage(usageRecord);
 
       await emitHook(resolvedConfig.hooks.onUsageRecorded, {
-        timestamp: new Date().toISOString(),
-        context: resolvedContext,
+        ...createHookEventBase(runId, resolvedContext),
         preflight,
         decision: policyEvaluation.decision,
         effectiveConfig,
@@ -301,8 +298,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
         costSpikeExplanation.detected
       ) {
         await emitHook(resolvedConfig.hooks.onCostSpikeDetected, {
-          timestamp: new Date().toISOString(),
-          context: resolvedContext,
+          ...createHookEventBase(runId, resolvedContext),
           preflight,
           decision: policyEvaluation.decision,
           effectiveConfig,
@@ -312,6 +308,7 @@ export const createGuard = (config: GuardConfig = {}): Guard => {
       }
 
       return {
+        runId,
         result,
         context: resolvedContext,
         decision: policyEvaluation.decision,

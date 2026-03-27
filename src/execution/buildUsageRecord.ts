@@ -10,6 +10,7 @@ import type { UsageRecord } from '../types/storage.js';
 import type { ActualUsage } from '../types/usage.js';
 
 export interface BuildUsageRecordParams {
+  runId: string;
   context: ResolvedRunContext;
   effectiveConfig: EffectiveRunConfig;
   decision: GuardDecision;
@@ -23,6 +24,7 @@ export interface BuildUsageRecordParams {
 
 export const buildUsageRecord = (params: BuildUsageRecordParams): UsageRecord => {
   const {
+    runId,
     context,
     effectiveConfig,
     decision,
@@ -36,6 +38,7 @@ export const buildUsageRecord = (params: BuildUsageRecordParams): UsageRecord =>
 
   return {
     id: crypto.randomUUID(),
+    runId,
     timestamp: timestamp ?? new Date().toISOString(),
 
     projectId: context.project.id,

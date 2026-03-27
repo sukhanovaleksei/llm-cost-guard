@@ -7,6 +7,7 @@ export type MaybePromise<TValue> = TValue | Promise<TValue>;
 
 export interface UsageRecord {
   id: string;
+  runId: string;
   timestamp: string;
 
   projectId: string;

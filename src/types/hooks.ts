@@ -12,6 +12,7 @@ import type { MaybePromise, UsageRecord } from './storage.js';
 import type { ActualUsage } from './usage.js';
 
 export interface HookEventBase {
+  runId: string;
   timestamp: string;
   context: ResolvedRunContext;
 }

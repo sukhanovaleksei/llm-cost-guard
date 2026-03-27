@@ -46,6 +46,7 @@ const createGuardWithPricingAndPolicies = (config: Parameters<typeof createGuard
 const createStoredUsageRecord = (overrides: Partial<UsageRecord> = {}): UsageRecord => {
   return {
     id: crypto.randomUUID(),
+    runId: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
     projectId: 'app-main',
     providerId: 'openai',

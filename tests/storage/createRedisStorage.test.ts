@@ -7,6 +7,7 @@ import { createFakeRedisStorageClient } from '../helpers/createFakeRedisStorageC
 const createUsageRecord = (overrides: Partial<UsageRecord> = {}): UsageRecord => {
   return {
     id: 'record-1',
+    runId: 'run-1',
     timestamp: '2026-03-23T10:00:00.000Z',
     projectId: 'app-main',
     providerId: 'openai',

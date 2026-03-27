@@ -143,6 +143,7 @@ export interface GuardDecision {
 }
 
 export interface GuardResult<TExecuteResult> {
+  runId: string;
   result?: TExecuteResult;
   context: ResolvedRunContext;
   decision: GuardDecision;

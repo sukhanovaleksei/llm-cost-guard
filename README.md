@@ -213,3 +213,23 @@ const guard = createGuard({
   },
 });
 ```
+
+```ts
+import { createConsoleLoggerHooks, createGuard } from 'llm-cost-guard';
+
+const guard = createGuard({
+  defaultProjectId: 'app-main',
+  pricing: [
+    {
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      inputCostPerMillionTokens: 0.15,
+      outputCostPerMillionTokens: 0.6,
+    },
+  ],
+  hooks: createConsoleLoggerHooks({
+    minLevel: 'info',
+    includeRequestContent: false,
+  }),
+});
+```
