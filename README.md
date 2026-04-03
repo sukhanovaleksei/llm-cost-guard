@@ -1,5 +1,7 @@
 # llm-cost-guard
 
+![CI](https://github.com/sukhanovaleksei/llm-cost-guard/actions/workflows/ci.yml/badge.svg)
+
 Open-source TypeScript SDK for LLM cost estimation, budget enforcement, usage attribution, and cost spike analysis.
 
 ## Status
@@ -251,3 +253,14 @@ npm run example:framework:express
 npm run example:framework:next
 npm run example:framework:nest
 ```
+
+## Examples quality gates
+
+The repository validates examples through dedicated commands:
+
+```bash
+npm run examples:typecheck
+npm run examples:smoke
+```
+
+These commands help ensure that runnable examples remain aligned with the current source code and public API surface.
