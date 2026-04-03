@@ -25,7 +25,7 @@ export type ExecuteReturnValue<TExecuteResult> =
   | ExecuteResultEnvelope<TExecuteResult>;
 
 export interface RunOverrides {
-  tags?: string[];
+  tags?: string[] | undefined;
   metadata?: Metadata;
 }
 
@@ -39,20 +39,22 @@ export interface RunContext {
     maxTokens?: number | undefined;
   };
   user?: {
-    id?: string;
+    id?: string | undefined;
   };
   request?: RequestLike | undefined;
   breakdown?: RunBreakdownInput | undefined;
-  attribution?: {
-    feature?: string;
-    endpoint?: string;
-    tags?: string[];
-  };
+  attribution?:
+    | {
+        feature?: string | undefined;
+        endpoint?: string | undefined;
+        tags?: string[] | undefined;
+      }
+    | undefined;
   metadata?: Metadata;
-  overrides?: RunOverrides;
+  overrides?: RunOverrides | undefined;
 
-  projectConfig?: RunProjectConfig;
-  providerConfig?: RunProviderConfig;
+  projectConfig?: RunProjectConfig | undefined;
+  providerConfig?: RunProviderConfig | undefined;
 }
 
 export interface ResolvedRunContext {

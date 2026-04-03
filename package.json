@@ -37,6 +37,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/frameworks/express/index.d.ts",
+      "import": "./dist/frameworks/express/index.js"
+    },
+    "./next": {
+      "types": "./dist/frameworks/next/index.d.ts",
+      "import": "./dist/frameworks/next/index.js"
+    },
+    "./nest": {
+      "types": "./dist/frameworks/nest/index.d.ts",
+      "import": "./dist/frameworks/nest/index.js"
     }
   },
   "publishConfig": {
@@ -57,8 +69,21 @@
     "lint:ci": "eslint . --max-warnings 0",
     "prepublishOnly": "npm run typecheck && npm run build && npm run test"
   },
+  "peerDependencies": {
+    "@nestjs/common": ">=10",
+    "rxjs": ">=7"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/common": {
+      "optional": true
+    },
+    "rxjs": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@types/node": "^25.4.0",
+    "@nestjs/common": "^10.4.20",
+    "@types/node": "^25.5.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
     "eslint-config-prettier": "^10.1.8",
@@ -67,6 +92,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.4.1",
     "rimraf": "^6.1.3",
+    "rxjs": "^7.8.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.0",
     "vitest": "^4.0.18"
