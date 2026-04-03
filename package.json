@@ -67,6 +67,19 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:ci": "eslint . --max-warnings 0",
+    "examples:typecheck": "tsc -p tsconfig.examples.json --noEmit",
+    "example:core:basic-run": "tsx examples/core/basic-run/index.ts",
+    "example:core:basic-run-blocked": "tsx examples/core/basic-run-blocked/index.ts",
+    "example:core:basic-run-downgraded": "tsx examples/core/basic-run-downgraded/index.ts",
+    "example:adapter:openai": "tsx examples/adapters/openai-mock/index.ts",
+    "example:adapter:anthropic": "tsx examples/adapters/anthropic-mock/index.ts",
+    "example:budget:per-user": "tsx examples/budgets/per-user-budget/index.ts",
+    "example:storage:redis": "tsx examples/storage/redis-basic/index.ts",
+    "example:analytics:spike": "tsx examples/analytics/explain-cost-spike/index.ts",
+    "example:framework:express": "tsx examples/frameworks/express-basic/index.ts",
+    "example:framework:next": "tsx examples/frameworks/next-basic/index.ts",
+    "example:framework:nest": "tsx examples/frameworks/nest-basic/index.ts",
+    "examples:smoke": "npm run example:core:basic-run && npm run example:core:basic-run-blocked && npm run example:core:basic-run-downgraded && npm run example:adapter:openai && npm run example:adapter:anthropic && npm run example:budget:per-user && npm run example:storage:redis && npm run example:analytics:spike && npm run example:framework:express && npm run example:framework:next && npm run example:framework:nest",
     "prepublishOnly": "npm run typecheck && npm run build && npm run test"
   },
   "peerDependencies": {
@@ -93,6 +106,7 @@
     "eslint-plugin-unused-imports": "^4.4.1",
     "rimraf": "^6.1.3",
     "rxjs": "^7.8.2",
+    "tsx": "^4.0.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.0",
     "vitest": "^4.0.18"

@@ -233,3 +233,21 @@ const guard = createGuard({
   }),
 });
 ```
+
+## Runnable examples
+
+See [`examples/README.md`](./examples/README.md).
+
+Quick commands:
+
+```bash
+npm run example:core:basic-run
+npm run example:core:basic-run-blocked
+npm run example:adapter:openai
+npm run example:budget:per-user
+npm run example:storage:redis
+npm run example:analytics:spike
+npm run example:framework:express
+npm run example:framework:next
+npm run example:framework:nest
+```
