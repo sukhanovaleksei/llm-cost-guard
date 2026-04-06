@@ -35,20 +35,17 @@ const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) 
 };
 
 const createClient = () => {
-  const create =
-    vi.fn<(request: AnthropicMessagesCreateRequest) => Promise<AnthropicMessageResponse>>();
-
-  const client = {
-    messages: {
-      async create(request: AnthropicMessagesCreateRequest): Promise<AnthropicMessageResponse> {
-        return {
-          id: 'msg_test_001',
-          model: request.model,
-          usage: { input_tokens: 120, output_tokens: 45 },
-        };
-      },
+  const create = vi.fn(
+    async (request: AnthropicMessagesCreateRequest): Promise<AnthropicMessageResponse> => {
+      return {
+        id: 'msg_test_001',
+        model: request.model,
+        usage: { input_tokens: 120, output_tokens: 45 },
+      };
     },
-  } satisfies AnthropicClientLike<
+  );
+
+  const client = { messages: { create } } satisfies AnthropicClientLike<
     (request: AnthropicMessagesCreateRequest) => Promise<AnthropicMessageResponse>
   >;
 
