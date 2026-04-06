@@ -19,7 +19,7 @@ const createGuardWithPricing = (config: Parameters<typeof createGuard>[0] = {}) 
     pricing: [
       {
         providerId: 'anthropic',
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         inputCostPerMillionTokens: 0.8,
         outputCostPerMillionTokens: 4,
       },
@@ -38,9 +38,19 @@ const createClient = () => {
   const create =
     vi.fn<(request: AnthropicMessagesCreateRequest) => Promise<AnthropicMessageResponse>>();
 
-  const client: AnthropicClientLike<AnthropicMessagesCreateRequest, AnthropicMessageResponse> = {
-    messages: { create },
-  };
+  const client = {
+    messages: {
+      async create(request: AnthropicMessagesCreateRequest): Promise<AnthropicMessageResponse> {
+        return {
+          id: 'msg_test_001',
+          model: request.model,
+          usage: { input_tokens: 120, output_tokens: 45 },
+        };
+      },
+    },
+  } satisfies AnthropicClientLike<
+    (request: AnthropicMessagesCreateRequest) => Promise<AnthropicMessageResponse>
+  >;
 
   return { client, create };
 };
@@ -78,14 +88,14 @@ describe('wrapAnthropic', () => {
       guard,
       {},
       {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         max_tokens: 300,
         messages: [{ role: 'user', content: 'Hello' }],
       },
     );
 
     expect(result.context.provider.id).toBe('anthropic');
-    expect(result.context.provider.model).toBe('claude-3-5-haiku-latest');
+    expect(result.context.provider.model).toBe('claude-4-5-haiku-latest');
     expect(result.context.provider.maxTokens).toBe(300);
   });
 
@@ -101,7 +111,7 @@ describe('wrapAnthropic', () => {
       guard,
       {},
       {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         system: 'You are a helpful assistant',
         messages: [{ role: 'user', content: 'Explain queues in Node.js' }],
         max_tokens: 300,
@@ -139,7 +149,7 @@ describe('wrapAnthropic', () => {
     const guard = createGuardWithPricing({
       policies: {
         requestBudget: { maxEstimatedWorstCaseCostUsd: 0.01 },
-        downgrade: { onRequestBudgetExceeded: { fallbackModel: 'claude-3-5-haiku-latest' } },
+        downgrade: { onRequestBudgetExceeded: { fallbackModel: 'claude-4-5-haiku-latest' } },
       },
     });
 
@@ -160,8 +170,8 @@ describe('wrapAnthropic', () => {
     );
 
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create.mock.calls[0]?.[0].model).toBe('claude-3-5-haiku-latest');
-    expect(result.context.provider.model).toBe('claude-3-5-haiku-latest');
+    expect(create.mock.calls[0]?.[0].model).toBe('claude-4-5-haiku-latest');
+    expect(result.context.provider.model).toBe('claude-4-5-haiku-latest');
     expect(result.decision.action).toBe('downgrade');
   });
 
@@ -170,7 +180,7 @@ describe('wrapAnthropic', () => {
       pricing: [
         {
           providerId: 'anthropic',
-          model: 'claude-3-5-haiku-latest',
+          model: 'claude-4-5-haiku-latest',
           inputCostPerMillionTokens: 1,
           outputCostPerMillionTokens: 1,
         },
@@ -191,7 +201,7 @@ describe('wrapAnthropic', () => {
       guard,
       {},
       {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         max_tokens: 1000,
         messages: [{ role: 'user', content: 'Hello world' }],
       },
@@ -213,7 +223,7 @@ describe('wrapAnthropic', () => {
       guard,
       {},
       {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         max_tokens: 500,
         messages: [{ role: 'user', content: 'Hello' }],
       },
@@ -236,7 +246,7 @@ describe('wrapAnthropic', () => {
       guard,
       {},
       {
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         max_tokens: 500,
         messages: [{ role: 'user', content: 'Hello' }],
       },
@@ -256,7 +266,7 @@ describe('wrapAnthropic', () => {
         guard,
         {},
         {
-          model: 'claude-3-5-haiku-latest',
+          model: 'claude-4-5-haiku-latest',
           stream: true,
           max_tokens: 500,
           messages: [{ role: 'user', content: 'Hello' }],
@@ -275,7 +285,7 @@ describe('wrapAnthropic', () => {
         guard,
         { provider: { id: 'openai' } },
         {
-          model: 'claude-3-5-haiku-latest',
+          model: 'claude-4-5-haiku-latest',
           max_tokens: 500,
           messages: [{ role: 'user', content: 'Hello' }],
         },

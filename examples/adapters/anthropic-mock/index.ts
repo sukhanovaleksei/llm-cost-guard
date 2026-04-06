@@ -1,5 +1,6 @@
 import {
   type AnthropicClientLike,
+  type AnthropicCreateFunction,
   type AnthropicMessageResponse,
   type AnthropicMessagesCreateRequest,
   wrapAnthropic,
@@ -14,18 +15,20 @@ interface MockAnthropicResponse extends AnthropicMessageResponse {
   content_text: string;
 }
 
-const mockClient: AnthropicClientLike<AnthropicMessagesCreateRequest, MockAnthropicResponse> = {
+const mockClient = {
   messages: {
     async create(request: AnthropicMessagesCreateRequest): Promise<MockAnthropicResponse> {
       return {
         id: 'msg_mock_anthropic_001',
-        model: request.model ?? 'claude-3-5-haiku-latest',
+        model: request.model ?? 'claude-4-5-haiku-latest',
         content_text: 'Mock Anthropic response',
         usage: { input_tokens: 190, output_tokens: 80 },
       };
     },
   },
-};
+} satisfies AnthropicClientLike<
+  AnthropicCreateFunction<AnthropicMessagesCreateRequest, MockAnthropicResponse>
+>;
 
 const main = async (): Promise<void> => {
   const guard = createDemoGuard({
@@ -46,7 +49,7 @@ const main = async (): Promise<void> => {
       },
     },
     {
-      model: 'claude-3-5-haiku-latest',
+      model: 'claude-4-5-haiku-latest',
       max_tokens: 250,
       messages: [
         {

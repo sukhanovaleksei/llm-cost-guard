@@ -1,24 +1,23 @@
 import { InvalidOpenAIAdapterRequestError } from '../../errors/InvalidOpenAIAdapterRequestError.js';
+import type { JsonObject } from '../../types/json.js';
 import type { RequestLike } from '../../types/requests.js';
 import type { ResolvedRunContext, RunContext } from '../../types/run.js';
 import { parseOpenAIUsage } from './parseOpenAIUsage.js';
 import type {
+  InferOpenAIRequest,
   OpenAIAdapter,
   OpenAIClientLike,
   OpenAIInputMessageContentItem,
   OpenAIInputMessageItem,
-  OpenAIResponseInputItem,
   OpenAIResponseLike,
-  OpenAIResponsesCreateRequest,
+  OpenAIResponsesCreateRequestLike,
 } from './types.js';
 
 const isNonEmptyTrimmedString = (value: string | undefined): value is string => {
   return value !== undefined && value.trim().length > 0;
 };
 
-const isOpenAIInputMessageItem = (
-  value: OpenAIResponseInputItem,
-): value is OpenAIInputMessageItem => {
+const isOpenAIInputMessageItem = (value: JsonObject): value is OpenAIInputMessageItem => {
   return (
     value.type === 'message' &&
     typeof value.role === 'string' &&
@@ -27,7 +26,7 @@ const isOpenAIInputMessageItem = (
 };
 
 const isOpenAIInputTextContentItem = (
-  value: OpenAIInputMessageContentItem,
+  value: JsonObject,
 ): value is OpenAIInputMessageContentItem & { type: 'input_text'; text: string } => {
   return value.type === 'input_text' && typeof value.text === 'string';
 };
@@ -44,7 +43,7 @@ const extractTextFromMessageItem = (item: OpenAIInputMessageItem): string => {
   return parts.join(' ');
 };
 
-const buildRequestLikeFromOpenAIRequest = <TRequest extends OpenAIResponsesCreateRequest>(
+const buildRequestLikeFromOpenAIRequest = <TRequest extends OpenAIResponsesCreateRequestLike>(
   request: TRequest,
 ): RequestLike | undefined => {
   const messages: Array<{ role?: string; content?: string }> = [];
@@ -70,7 +69,7 @@ const buildRequestLikeFromOpenAIRequest = <TRequest extends OpenAIResponsesCreat
   return { messages };
 };
 
-const normalizeOpenAIContext = <TRequest extends OpenAIResponsesCreateRequest>(
+const normalizeOpenAIContext = <TRequest extends OpenAIResponsesCreateRequestLike>(
   context: RunContext,
   request: TRequest,
 ): RunContext => {
@@ -100,7 +99,7 @@ const normalizeOpenAIContext = <TRequest extends OpenAIResponsesCreateRequest>(
   };
 };
 
-const assertSupportedOpenAIRequest = <TRequest extends OpenAIResponsesCreateRequest>(
+const assertSupportedOpenAIRequest = <TRequest extends OpenAIResponsesCreateRequestLike>(
   context: RunContext,
   request: TRequest,
 ): void => {
@@ -124,7 +123,7 @@ const assertResolvedProviderIsOpenAI = (context: ResolvedRunContext): void => {
     );
 };
 
-const applyResolvedProviderToRequest = <TRequest extends OpenAIResponsesCreateRequest>(
+const applyResolvedProviderToRequest = <TRequest extends OpenAIResponsesCreateRequestLike>(
   request: TRequest,
   context: ResolvedRunContext,
 ): TRequest & { model: string; max_output_tokens?: number } => {
@@ -140,11 +139,15 @@ const applyResolvedProviderToRequest = <TRequest extends OpenAIResponsesCreateRe
 };
 
 export const wrapOpenAI = <
-  TRequest extends OpenAIResponsesCreateRequest,
-  TResponse extends OpenAIResponseLike,
+  TCreate,
+  TRequest extends OpenAIResponsesCreateRequestLike = InferOpenAIRequest<TCreate>,
 >(
-  client: OpenAIClientLike<TRequest, TResponse>,
-): OpenAIAdapter<TRequest, TResponse> => {
+  client: OpenAIClientLike<TCreate>,
+): OpenAIAdapter<TRequest, OpenAIResponseLike> => {
+  const create = (
+    client.responses.create as (request: TRequest, ...args: object[]) => Promise<OpenAIResponseLike>
+  ).bind(client.responses);
+
   return {
     responses: {
       async create(guard, context, request) {
@@ -157,7 +160,7 @@ export const wrapOpenAI = <
 
           const effectiveRequest = applyResolvedProviderToRequest(request, resolvedContext);
 
-          const response = await client.responses.create(effectiveRequest);
+          const response = await create(effectiveRequest);
           const usage = parseOpenAIUsage(response);
 
           if (usage === undefined) return response;

@@ -1,5 +1,6 @@
 import {
   type OpenAIClientLike,
+  type OpenAICreateFunction,
   type OpenAIResponseLike,
   type OpenAIResponsesCreateRequest,
   wrapOpenAI,
@@ -13,7 +14,7 @@ interface MockOpenAIResponse extends OpenAIResponseLike {
   output_text: string;
 }
 
-const mockClient: OpenAIClientLike<OpenAIResponsesCreateRequest, MockOpenAIResponse> = {
+const mockClient = {
   responses: {
     async create(request: OpenAIResponsesCreateRequest): Promise<MockOpenAIResponse> {
       const prompt =
@@ -28,7 +29,9 @@ const mockClient: OpenAIClientLike<OpenAIResponsesCreateRequest, MockOpenAIRespo
       };
     },
   },
-};
+} satisfies OpenAIClientLike<
+  OpenAICreateFunction<OpenAIResponsesCreateRequest, MockOpenAIResponse>
+>;
 
 const main = async (): Promise<void> => {
   const guard = createDemoGuard({

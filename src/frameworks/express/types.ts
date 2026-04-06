@@ -7,21 +7,25 @@ import type {
 } from '../shared/types.js';
 
 export type ExpressHeaderValue = string | string[] | undefined;
-export type ExpressQueryValue = string | string[] | undefined;
+export type ExpressQueryValue =
+  | string
+  | undefined
+  | ExpressQueryValue[]
+  | { [key: string]: ExpressQueryValue };
 
 export interface ExpressRouteLike {
-  path?: string;
+  path?: string | undefined;
 }
 
 export interface ExpressRequestLike {
   method: string;
-  path?: string;
-  originalUrl?: string;
-  baseUrl?: string;
-  route?: ExpressRouteLike;
-  ip?: string;
+  path?: string | undefined;
+  originalUrl?: string | undefined;
+  baseUrl?: string | undefined;
+  route?: ExpressRouteLike | undefined;
+  ip?: string | undefined;
   headers: Record<string, ExpressHeaderValue>;
-  query?: Record<string, ExpressQueryValue>;
+  query?: Record<string, ExpressQueryValue> | undefined;
 }
 
 export interface ExpressResponseLike {

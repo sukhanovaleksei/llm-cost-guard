@@ -1,4 +1,5 @@
 import { InvalidAnthropicAdapterRequestError } from '../../errors/InvalidAnthropicAdapterRequestError.js';
+import type { JsonObject } from '../../types/json.js';
 import type { RequestLike } from '../../types/requests.js';
 import type { ResolvedRunContext, RunContext } from '../../types/run.js';
 import { parseAnthropicUsage } from './parseAnthropicUsage.js';
@@ -8,8 +9,8 @@ import type {
   AnthropicContentBlock,
   AnthropicMessage,
   AnthropicMessageResponse,
-  AnthropicMessagesCreateRequest,
-  AnthropicSystemPrompt,
+  AnthropicMessagesCreateRequestLike,
+  InferAnthropicRequest,
 } from './types.js';
 
 const isNonEmptyTrimmedString = (value: string | undefined): value is string => {
@@ -17,12 +18,19 @@ const isNonEmptyTrimmedString = (value: string | undefined): value is string => 
 };
 
 const isAnthropicTextBlock = (
-  value: AnthropicContentBlock,
+  value: JsonObject,
 ): value is AnthropicContentBlock & { type: 'text'; text: string } => {
   return value.type === 'text' && typeof value.text === 'string';
 };
 
-const extractTextFromContentBlocks = (blocks: AnthropicContentBlock[]): string => {
+const isAnthropicMessage = (value: JsonObject): value is AnthropicMessage => {
+  return (
+    (value.role === 'user' || value.role === 'assistant') &&
+    (typeof value.content === 'string' || Array.isArray(value.content))
+  );
+};
+
+const extractTextFromContentBlocks = (blocks: JsonObject[]): string => {
   const parts: string[] = [];
 
   for (const block of blocks) {
@@ -38,20 +46,20 @@ const extractTextFromMessage = (message: AnthropicMessage): string => {
   return extractTextFromContentBlocks(message.content);
 };
 
-const extractSystemText = (system: AnthropicSystemPrompt | undefined): string => {
+const extractSystemText = (system: string | JsonObject[] | undefined): string => {
   if (system === undefined) return '';
   if (typeof system === 'string') return system;
 
   const parts: string[] = [];
 
   for (const block of system) {
-    if (block.type === 'text' && typeof block.text === 'string') parts.push(block.text);
+    if (isAnthropicTextBlock(block)) parts.push(block.text);
   }
 
   return parts.join(' ');
 };
 
-const buildRequestLikeFromAnthropicRequest = <TRequest extends AnthropicMessagesCreateRequest>(
+const buildRequestLikeFromAnthropicRequest = <TRequest extends AnthropicMessagesCreateRequestLike>(
   request: TRequest,
 ): RequestLike | undefined => {
   const messages: Array<{ role?: string; content?: string }> = [];
@@ -61,11 +69,13 @@ const buildRequestLikeFromAnthropicRequest = <TRequest extends AnthropicMessages
 
   const requestMessages = request.messages ?? [];
 
-  for (const message of requestMessages) {
-    const content = extractTextFromMessage(message).trim();
+  for (const candidate of requestMessages) {
+    if (!isAnthropicMessage(candidate)) continue;
+
+    const content = extractTextFromMessage(candidate).trim();
     if (content.length === 0) continue;
 
-    messages.push({ role: message.role, content });
+    messages.push({ role: candidate.role, content });
   }
 
   if (messages.length === 0) return undefined;
@@ -73,11 +83,12 @@ const buildRequestLikeFromAnthropicRequest = <TRequest extends AnthropicMessages
   return { messages };
 };
 
-const normalizeAnthropicContext = <TRequest extends AnthropicMessagesCreateRequest>(
+const normalizeAnthropicContext = <TRequest extends AnthropicMessagesCreateRequestLike>(
   context: RunContext,
   request: TRequest,
 ): RunContext => {
   const derivedRequest = context.request ?? buildRequestLikeFromAnthropicRequest(request);
+
   const existingProvider = context.provider;
 
   const provider =
@@ -101,7 +112,7 @@ const normalizeAnthropicContext = <TRequest extends AnthropicMessagesCreateReque
   };
 };
 
-const assertSupportedAnthropicRequest = <TRequest extends AnthropicMessagesCreateRequest>(
+const assertSupportedAnthropicRequest = <TRequest extends AnthropicMessagesCreateRequestLike>(
   context: RunContext,
   request: TRequest,
 ): void => {
@@ -125,7 +136,7 @@ const assertResolvedProviderIsAnthropic = (context: ResolvedRunContext): void =>
     );
 };
 
-const applyResolvedProviderToRequest = <TRequest extends AnthropicMessagesCreateRequest>(
+const applyResolvedProviderToRequest = <TRequest extends AnthropicMessagesCreateRequestLike>(
   request: TRequest,
   context: ResolvedRunContext,
 ): TRequest & { model: string; max_tokens?: number } => {
@@ -139,11 +150,18 @@ const applyResolvedProviderToRequest = <TRequest extends AnthropicMessagesCreate
 };
 
 export const wrapAnthropic = <
-  TRequest extends AnthropicMessagesCreateRequest,
-  TResponse extends AnthropicMessageResponse,
+  TCreate,
+  TRequest extends AnthropicMessagesCreateRequestLike = InferAnthropicRequest<TCreate>,
 >(
-  client: AnthropicClientLike<TRequest, TResponse>,
-): AnthropicAdapter<TRequest, TResponse> => {
+  client: AnthropicClientLike<TCreate>,
+): AnthropicAdapter<TRequest, AnthropicMessageResponse> => {
+  const create = (
+    client.messages.create as (
+      request: TRequest,
+      ...args: object[]
+    ) => Promise<AnthropicMessageResponse>
+  ).bind(client.messages);
+
   return {
     messages: {
       async create(guard, context, request) {
@@ -155,7 +173,8 @@ export const wrapAnthropic = <
           assertResolvedProviderIsAnthropic(resolvedContext);
 
           const effectiveRequest = applyResolvedProviderToRequest(request, resolvedContext);
-          const response = await client.messages.create(effectiveRequest);
+
+          const response = await create(effectiveRequest);
           const usage = parseAnthropicUsage(response);
 
           if (usage === undefined) return response;

@@ -46,19 +46,24 @@ export interface AnthropicMessage extends JsonObject {
 }
 
 export type AnthropicSystemBlock = AnthropicTextBlock;
-
 export type AnthropicSystemPrompt = string | AnthropicSystemBlock[];
 
 export type AnthropicMetadata = Record<string, string>;
 
-export type AnthropicMessagesCreateRequest = JsonObject & {
-  model?: string;
-  messages?: AnthropicMessage[];
-  system?: AnthropicSystemPrompt;
+export interface AnthropicMessagesCreateRequestLike extends JsonObject {
+  model: string;
+  messages?: JsonObject[];
+  system?: string | JsonObject[];
   max_tokens?: number;
   stream?: boolean;
+  metadata?: Record<string, string>;
+}
+
+export interface AnthropicMessagesCreateRequest extends AnthropicMessagesCreateRequestLike {
+  messages?: AnthropicMessage[];
+  system?: AnthropicSystemPrompt;
   metadata?: AnthropicMetadata;
-};
+}
 
 export interface AnthropicUsageLike extends JsonObject {
   input_tokens?: number;
@@ -71,25 +76,29 @@ export interface AnthropicMessageResponse extends JsonObject {
   usage?: AnthropicUsageLike;
 }
 
-export interface AnthropicMessagesClient<
-  TRequest extends AnthropicMessagesCreateRequest,
-  TResponse extends AnthropicMessageResponse,
-> {
-  create(request: TRequest): Promise<TResponse>;
+export interface AnthropicClientLike<TCreate = object> {
+  messages: {
+    create: TCreate;
+  };
 }
 
-export interface AnthropicClientLike<
-  TRequest extends AnthropicMessagesCreateRequest,
-  TResponse extends AnthropicMessageResponse,
-> {
-  messages: AnthropicMessagesClient<TRequest, TResponse>;
-}
+export type InferAnthropicRequest<TCreate> = TCreate extends (
+  request: infer TRequest,
+  ...args: object[]
+) => Promise<object>
+  ? TRequest & AnthropicMessagesCreateRequestLike
+  : AnthropicMessagesCreateRequestLike;
 
 export interface AnthropicAdapter<
-  TRequest extends AnthropicMessagesCreateRequest,
+  TRequest extends AnthropicMessagesCreateRequestLike,
   TResponse extends AnthropicMessageResponse,
 > {
   messages: {
     create(guard: Guard, context: RunContext, request: TRequest): Promise<GuardResult<TResponse>>;
   };
 }
+
+export type AnthropicCreateFunction<
+  TRequest extends AnthropicMessagesCreateRequestLike,
+  TResponse extends AnthropicMessageResponse,
+> = (request: TRequest) => Promise<TResponse>;

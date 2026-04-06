@@ -24,3 +24,16 @@
 6. storage example
 7. analytics example
 8. framework examples
+
+## Real integration examples
+
+These examples require credentials and network access, so they are not included in `examples:smoke`.
+
+- `npm run example:adapter:openai:real`
+- `npm run example:adapter:anthropic:real`
+- `npm run example:framework:express:real`
+
+## Smoke vs real examples
+
+- smoke examples: deterministic, secretless, CI-friendly
+- real examples: use external SDKs and real provider responses

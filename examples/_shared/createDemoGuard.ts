@@ -39,7 +39,7 @@ export const createDemoGuard = (options: DemoGuardOptions = {}): Guard => {
       },
       {
         providerId: 'anthropic',
-        model: 'claude-3-5-haiku-latest',
+        model: 'claude-4-5-haiku-latest',
         inputCostPerMillionTokens: 0.8,
         outputCostPerMillionTokens: 4,
       },

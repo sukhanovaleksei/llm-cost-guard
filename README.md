@@ -114,7 +114,7 @@ const guard = createGuard({
   pricing: [
     {
       providerId: 'anthropic',
-      model: 'claude-3-5-haiku-latest',
+      model: 'claude-4-5-haiku-latest',
       inputCostPerMillionTokens: 0.8,
       outputCostPerMillionTokens: 4,
     },
@@ -133,7 +133,7 @@ const result = await anthropic.messages.create(
   guard,
   {},
   {
-    model: 'claude-3-5-haiku-latest',
+    model: 'claude-4-5-haiku-latest',
     max_tokens: 500,
     messages: [{ role: 'user', content: 'Explain distributed systems in depth' }],
   },
@@ -264,3 +264,10 @@ npm run examples:smoke
 ```
 
 These commands help ensure that runnable examples remain aligned with the current source code and public API surface.
+
+Real integration examples are also available for:
+- OpenAI SDK
+- Anthropic SDK
+- Express server integration
+
+See `examples/README.md` for setup details.

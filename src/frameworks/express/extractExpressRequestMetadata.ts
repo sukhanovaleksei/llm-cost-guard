@@ -3,7 +3,23 @@ import type { ExpressHeaderValue, ExpressQueryValue, ExpressRequestLike } from '
 
 const readFirstValue = (value: ExpressHeaderValue | ExpressQueryValue): string | undefined => {
   if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return value[0];
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const normalizedValue = readFirstValue(item);
+      if (normalizedValue !== undefined) return normalizedValue;
+    }
+
+    return undefined;
+  }
+
+  if (value === undefined) return undefined;
+
+  for (const nestedValue of Object.values(value)) {
+    const normalizedValue = readFirstValue(nestedValue);
+    if (normalizedValue !== undefined) return normalizedValue;
+  }
+
   return undefined;
 };
 

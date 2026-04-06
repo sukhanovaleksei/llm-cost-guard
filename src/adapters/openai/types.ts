@@ -30,14 +30,19 @@ export type OpenAIResponseInput = string | OpenAIResponseInputItem[];
 
 export type OpenAIResponseMetadata = Record<string, string>;
 
-export type OpenAIResponsesCreateRequest = JsonObject & {
+export interface OpenAIResponsesCreateRequestLike extends JsonObject {
   model?: string;
-  input?: OpenAIResponseInput;
+  input?: string | JsonObject[];
   instructions?: string;
   max_output_tokens?: number;
-  stream?: boolean;
+  stream?: boolean | null;
+  metadata?: Record<string, string>;
+}
+
+export interface OpenAIResponsesCreateRequest extends OpenAIResponsesCreateRequestLike {
+  input?: OpenAIResponseInput;
   metadata?: OpenAIResponseMetadata;
-};
+}
 
 export interface OpenAIUsageLike extends JsonObject {
   input_tokens?: number;
@@ -50,25 +55,29 @@ export interface OpenAIResponseLike extends JsonObject {
   usage?: OpenAIUsageLike;
 }
 
-export interface OpenAIResponsesClient<
-  TRequest extends OpenAIResponsesCreateRequest,
-  TResponse extends OpenAIResponseLike,
-> {
-  create(request: TRequest): Promise<TResponse>;
+export interface OpenAIClientLike<TCreate = object> {
+  responses: {
+    create: TCreate;
+  };
 }
 
-export interface OpenAIClientLike<
-  TRequest extends OpenAIResponsesCreateRequest,
-  TResponse extends OpenAIResponseLike,
-> {
-  responses: OpenAIResponsesClient<TRequest, TResponse>;
-}
+export type InferOpenAIRequest<TCreate> = TCreate extends (
+  request: infer TRequest,
+  ...args: object[]
+) => Promise<object>
+  ? TRequest & OpenAIResponsesCreateRequestLike
+  : OpenAIResponsesCreateRequestLike;
 
 export interface OpenAIAdapter<
-  TRequest extends OpenAIResponsesCreateRequest,
+  TRequest extends OpenAIResponsesCreateRequestLike,
   TResponse extends OpenAIResponseLike,
 > {
   responses: {
     create(guard: Guard, context: RunContext, request: TRequest): Promise<GuardResult<TResponse>>;
   };
 }
+
+export type OpenAICreateFunction<
+  TRequest extends OpenAIResponsesCreateRequestLike,
+  TResponse extends OpenAIResponseLike,
+> = (request: TRequest) => Promise<TResponse>;
